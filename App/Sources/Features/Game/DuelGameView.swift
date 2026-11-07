@@ -1,8 +1,9 @@
 import SwiftUI
 import AnagramEngine
 
-/// Two players, one phone. In turn, one says (or types) a sentence and passes the phone;
-/// the other has two minutes to make a full anagram of it.
+/// Two to four players, one phone. The rules (time, rounds, languages, scoring) are chosen
+/// before the game and stay fixed. In turn, one player writes a sentence (typed, or read with
+/// the camera) and passes the phone; the next one has the chosen time to make a full anagram.
 struct DuelGameView: View {
     private enum Phase: Equatable {
         case setup, setting, handoff, solving
@@ -12,9 +13,7 @@ struct DuelGameView: View {
 
     @State private var session = GameSession()
     @State private var phase = Phase.setup
-    @State private var names = ["", ""]
-    @State private var rounds = 3
-    @State private var duel = Duel(players: ["Player 1", "Player 2"], rounds: 3)
+    @State private var duel = Duel(players: ["Player 1", "Player 2"])
     @State private var sentence = ""
     @State private var start = Date.now
     @State private var end: Date?
@@ -23,15 +22,17 @@ struct DuelGameView: View {
         Group {
             switch phase {
             case .setup:
-                DuelSetupView(names: $names, rounds: $rounds, start: begin)
+                DuelSetupView(start: begin)
             case .setting:
-                ListeningView(prompt: "\(setter): say or type a sentence for \(solver).")
+                ListeningView(prompt: "\(setter): type a sentence for \(solver), or read one with the camera.",
+                              voice: false)
             case .handoff:
                 handoff
             case .solving:
                 BoardView(header: AnyView(header),
                           leading: BoardAction(title: "Give up", symbol: "flag.fill") { endTurn(solved: false) },
-                          onCheck: check)
+                          onCheck: check,
+                          allowsSuggestions: false)
             case let .result(points, solved, answer):
                 result(points: points, solved: solved, answer: answer)
             case .over:
@@ -39,9 +40,8 @@ struct DuelGameView: View {
             }
         }
         .environment(session)
-        .navigationTitle(phase == .setup ? "Two players" : "Round \(min(duel.round, duel.rounds)) of \(duel.rounds)")
+        .navigationTitle(phase == .setup ? "Multiplayer" : "Round \(min(duel.round, duel.rounds)) of \(duel.rounds)")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { OptionsMenu() } }
         .onChange(of: session.stage) { _, stage in
             if stage == .building && phase == .setting {
                 sentence = session.source.text
@@ -72,8 +72,10 @@ struct DuelGameView: View {
                     .font(.largeTitle.weight(.heavy))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white)
-                Text("\(letters) letters, \(Int(Duel.solveTime / 60)) minutes to make an anagram.")
-                    .foregroundStyle(.white.opacity(0.8))
+                Text("\(letters) letters, \(duration(duel.settings.solveTime)) to make an anagram.")
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white.opacity(0.85))
+                RulesSummary(settings: duel.settings)
                 Button("I'm ready", action: startSolving)
                     .buttonStyle(CreamButtonStyle())
             }
@@ -82,47 +84,53 @@ struct DuelGameView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            if let end { Countdown(start: start, end: end).frame(maxWidth: 160) }
-            Spacer()
-            ScoreLabel(name: duel.players[0], points: duel.scores[0])
-            ScoreLabel(name: duel.players[1], points: duel.scores[1])
-                .padding(.leading, 12)
+        VStack(spacing: 10) {
+            if let end { Countdown(start: start, end: end) }
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(duel.players.indices, id: \.self) { i in
+                    ScoreLabel(name: duel.players[i], points: duel.scores[i])
+                        .opacity(i == duel.solver ? 1 : 0.6)
+                        .frame(maxWidth: .infinity)
+                }
+            }
         }
         .padding()
     }
 
     private func result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord]) -> some View {
         ThemedScreen {
-            VStack(spacing: 18) {
-                Image(systemName: solved ? "checkmark.seal.fill" : "hourglass")
-                    .font(.system(size: 56))
-                    .foregroundStyle(solved ? .green : Theme.glowLight)
-                // the turn has moved on: who just solved now sets the next sentence
-                Text(solved ? "\(duel.players[duel.setter]) did it! +\(points)" : "No anagram this time")
-                    .font(.title.weight(.heavy))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white)
-                VStack(spacing: 6) {
-                    Text(sentence.lowercased()).font(.headline)
-                    if !answer.isEmpty {
-                        Image(systemName: "arrow.down")
-                        ForEach(Array(answer.enumerated()), id: \.offset) { _, word in
-                            HStack(spacing: 8) {
-                                Text(word.text.lowercased()).font(.headline)
-                                Text(languageName(word.language) ?? "")
-                                    .font(.subheadline)
-                                    .foregroundStyle(Theme.glowLight)
+            ScrollView {
+                VStack(spacing: 18) {
+                    Image(systemName: solved ? "checkmark.seal.fill" : "hourglass")
+                        .font(.system(size: 56))
+                        .foregroundStyle(solved ? .green : Theme.glowLight)
+                    // the turn has moved on: who just solved now sets the next sentence
+                    Text(solved ? "\(duel.players[duel.setter]) did it! +\(points)" : "No anagram this time")
+                        .font(.title.weight(.heavy))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white)
+                    VStack(spacing: 6) {
+                        Text(sentence.lowercased()).font(.headline)
+                        if !answer.isEmpty {
+                            Image(systemName: "arrow.down")
+                            ForEach(Array(answer.enumerated()), id: \.offset) { _, word in
+                                HStack(spacing: 8) {
+                                    Text(word.text.lowercased()).font(.headline)
+                                    Text(languageName(word.language) ?? "")
+                                        .font(.subheadline)
+                                        .foregroundStyle(Theme.glowLight)
+                                }
                             }
                         }
                     }
+                    .foregroundStyle(Theme.cream)
+                    scoreboard
+                    Button(duel.isOver ? "See who won" : "Next: \(setter) writes a sentence", action: next)
+                        .buttonStyle(CreamButtonStyle())
                 }
-                .foregroundStyle(Theme.cream)
-                scoreboard
-                Button(duel.isOver ? "See who won" : "Next: \(setter) says a sentence", action: next)
-                    .buttonStyle(CreamButtonStyle())
+                .padding(24)
+                .frame(maxWidth: .infinity)
             }
-            .padding(24)
         }
     }
 
@@ -135,23 +143,28 @@ struct DuelGameView: View {
                     .symbolEffect(.bounce, options: .repeat(2))
                 Text(duel.winner.map { "\(duel.players[$0]) wins!" } ?? "It's a draw!")
                     .font(.largeTitle.weight(.heavy))
+                    .multilineTextAlignment(.center)
                     .foregroundStyle(.white)
                 scoreboard
-                Button("Play again", action: begin)
+                Button("Play again", action: playAgain)
                     .buttonStyle(CreamButtonStyle())
+                Button("Change the rules") { withAnimation { phase = .setup } }
+                    .foregroundStyle(Theme.glowLight)
             }
             .padding(24)
         }
     }
 
     private var scoreboard: some View {
-        HStack(spacing: 32) {
-            ForEach(0..<2, id: \.self) { i in
+        let many = duel.players.count > 2
+        return HStack(spacing: many ? 12 : 32) {
+            ForEach(duel.players.indices, id: \.self) { i in
                 VStack {
-                    Text(duel.players[i]).font(.headline).foregroundStyle(Theme.glowLight)
-                    Text("\(duel.scores[i])").font(.system(size: 44, weight: .heavy)).monospacedDigit()
+                    Text(duel.players[i]).font(.headline).foregroundStyle(Theme.glowLight).lineLimit(1)
+                    Text("\(duel.scores[i])").font(.system(size: many ? 32 : 44, weight: .heavy)).monospacedDigit()
                         .foregroundStyle(.white)
                 }
+                .frame(maxWidth: many ? .infinity : nil)
             }
         }
         .padding()
@@ -160,19 +173,21 @@ struct DuelGameView: View {
 
     // MARK: flow
 
-    private func begin() {
-        let players = names.enumerated().map { i, name in
-            let trimmed = name.trimmingCharacters(in: .whitespaces)
-            return trimmed.isEmpty ? "Player \(i + 1)" : trimmed
-        }
-        duel = Duel(players: players, rounds: rounds)
+    private func begin(_ players: [String], _ settings: Duel.Settings) {
+        duel = Duel(players: players, settings: settings)
         session.restart()
+        session.sameLanguageRule = settings.sameLanguage
         phase = .setting
+    }
+
+    /// Same players, same rules.
+    private func playAgain() {
+        begin(duel.players, duel.settings)
     }
 
     private func startSolving() {
         start = .now
-        end = start.addingTimeInterval(Duel.solveTime)
+        end = start.addingTimeInterval(duel.settings.solveTime)
         phase = .solving
     }
 
@@ -204,44 +219,196 @@ struct DuelGameView: View {
     }
 }
 
+/// "1 minute", "2 minutes", "90 seconds".
+private func duration(_ seconds: TimeInterval) -> String {
+    let s = Int(seconds)
+    if s % 60 != 0 { return "\(s) seconds" }
+    return s == 60 ? "1 minute" : "\(s / 60) minutes"
+}
+
+extension Duel.Settings.Scoring {
+    var title: String {
+        switch self {
+        case .lettersAndTime: "Letters + speed"
+        case .letters: "Letters"
+        case .anagrams: "Anagrams"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .lettersAndTime: "A point per letter, plus one for every 10 seconds left."
+        case .letters: "A point per letter of the sentence."
+        case .anagrams: "One point for each anagram made."
+        }
+    }
+}
+
+/// The game's rules, as chips.
+private struct RulesSummary: View {
+    let settings: Duel.Settings
+
+    var body: some View {
+        FlowLayout(spacing: 8) {
+            chip(settings.sameLanguage ? "One language" : "Any languages", "character.book.closed")
+            chip(settings.scoring.title, "star")
+            chip("\(settings.rounds) \(settings.rounds == 1 ? "round" : "rounds")", "repeat")
+        }
+    }
+
+    private func chip(_ text: String, _ symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Theme.navyDeep.opacity(0.9), in: .capsule)
+            .foregroundStyle(Theme.glowLight)
+    }
+}
+
+/// Players and rules, decided before the game starts (and remembered for next time).
 private struct DuelSetupView: View {
-    @Binding var names: [String]
-    @Binding var rounds: Int
-    let start: () -> Void
+    let start: ([String], Duel.Settings) -> Void
+
+    @AppStorage("duel.players") private var savedNames = ""
+    @AppStorage("duel.time") private var time = 120.0
+    @AppStorage("duel.rounds") private var rounds = 3
+    @AppStorage("duel.sameLanguage") private var sameLanguage = false
+    @AppStorage("duel.scoring") private var scoring = Duel.Settings.Scoring.lettersAndTime.rawValue
+    private struct Entry: Identifiable {
+        let id = UUID()
+        var name = ""
+    }
+
+    @State private var entries = [Entry(), Entry()]
+    @State private var loaded = false
+
+    private var scoringChoice: Binding<Duel.Settings.Scoring> {
+        Binding { Duel.Settings.Scoring(rawValue: scoring) ?? .lettersAndTime } set: { scoring = $0.rawValue }
+    }
 
     var body: some View {
         ThemedScreen {
-            VStack(spacing: 18) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 52))
-                    .foregroundStyle(Theme.glowLight)
-                ForEach(0..<2, id: \.self) { i in
-                    TextField("", text: $names[i], prompt: Text("Player \(i + 1)").foregroundStyle(.white.opacity(0.5)))
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(14)
-                        .background(Theme.navyDeep.opacity(0.9), in: .rect(cornerRadius: 14, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.glow.opacity(0.6)))
-                        .textInputAutocapitalization(.words)
-                        .submitLabel(.next)
+            ScrollView {
+                VStack(spacing: 16) {
+                    section("Players") {
+                        ForEach($entries) { $entry in
+                            let i = entries.firstIndex { $0.id == entry.id } ?? 0
+                            HStack {
+                                TextField("", text: $entry.name,
+                                          prompt: Text("Player \(i + 1)").foregroundStyle(.white.opacity(0.5)))
+                                    .font(.title3.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .textInputAutocapitalization(.words)
+                                    .submitLabel(.next)
+                                if entries.count > Duel.Settings.playerRange.lowerBound {
+                                    Button("Remove player \(i + 1)", systemImage: "minus.circle.fill") {
+                                        let id = entry.id
+                                        withAnimation { entries.removeAll { $0.id == id } }
+                                    }
+                                    .labelStyle(.iconOnly)
+                                    .foregroundStyle(.white.opacity(0.6))
+                                }
+                            }
+                            .padding(12)
+                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.glow.opacity(0.6)))
+                        }
+                        if entries.count < Duel.Settings.playerRange.upperBound {
+                            Button("Add player", systemImage: "plus.circle.fill") {
+                                withAnimation { entries.append(Entry()) }
+                            }
+                            .foregroundStyle(Theme.glowLight)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+
+                    section("Rules") {
+                        rule("Time to solve") {
+                            Picker("Time to solve", selection: $time) {
+                                ForEach(Duel.Settings.times, id: \.self) { t in
+                                    Text("\(Int(t) / 60) min").tag(t)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        rule("Rounds") {
+                            Stepper(value: $rounds, in: Duel.Settings.roundRange) {
+                                Text("\(rounds) \(rounds == 1 ? "round" : "rounds")")
+                                    .foregroundStyle(.white)
+                            }
+                            Text("Each round, everyone writes one sentence for the next player.")
+                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                        }
+                        rule("Languages") {
+                            Picker("Languages", selection: $sameLanguage) {
+                                Text("Any languages").tag(false)
+                                Text("One language").tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            Text(sameLanguage ? "All the words of an anagram must be in the same language."
+                                              : "Each word may be in a different language.")
+                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                        }
+                        rule("Scoring") {
+                            Picker("Scoring", selection: scoringChoice) {
+                                ForEach(Duel.Settings.Scoring.allCases, id: \.self) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            Text(scoringChoice.wrappedValue.detail)
+                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
+
+                    Text("In turn, each player writes a sentence and passes the phone to the next, who makes the anagram. No suggestions in a game.")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Start", action: go)
+                        .buttonStyle(CreamButtonStyle())
+                        .padding(.top, 4)
                 }
-                Stepper(value: $rounds, in: 1...10) {
-                    Text("\(rounds) \(rounds == 1 ? "round" : "rounds")")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.white)
-                }
-                .padding(14)
-                .background(Theme.navyDeep.opacity(0.9), in: .rect(cornerRadius: 14, style: .continuous))
-                Text("Each round, both of you say a sentence for the other. A full anagram scores a point per letter, plus one for every 10 seconds left.")
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white.opacity(0.75))
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Start", action: start)
-                    .buttonStyle(CreamButtonStyle())
-                    .padding(.top, 8)
+                .padding(20)
             }
-            .padding(24)
+            .scrollDismissesKeyboard(.interactively)
         }
+        .environment(\.colorScheme, .dark)
+        .onAppear(perform: load)
+    }
+
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title.uppercased())
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Theme.glowLight)
+            content()
+        }
+        .padding(16)
+        .background(Theme.navyDeep.opacity(0.9), in: .rect(cornerRadius: 18, style: .continuous))
+    }
+
+    private func rule<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.headline).foregroundStyle(.white)
+            content()
+        }
+    }
+
+    private func load() {
+        guard !loaded else { return }
+        loaded = true
+        let saved = savedNames.components(separatedBy: "\n")
+        if Duel.Settings.playerRange.contains(saved.count) { entries = saved.map { Entry(name: $0) } }
+        if !Duel.Settings.times.contains(time) { time = 120 }
+    }
+
+    private func go() {
+        savedNames = entries.map(\.name).joined(separator: "\n")
+        let players = entries.enumerated().map { i, entry in
+            let trimmed = entry.name.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? "Player \(i + 1)" : trimmed
+        }
+        start(players, Duel.Settings(solveTime: time, rounds: rounds, sameLanguage: sameLanguage,
+                                     scoring: scoringChoice.wrappedValue))
     }
 }

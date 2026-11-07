@@ -16,6 +16,8 @@ struct BoardView: View {
     var leading: BoardAction? = nil
     /// What Check does; training shows the verdict.
     var onCheck: (() async -> Void)? = nil
+    /// Off in multiplayer games: no hints while competing.
+    var allowsSuggestions = true
 
     private struct Drag: Equatable {
         let block: LetterBlock
@@ -198,7 +200,7 @@ struct BoardView: View {
                 Button("Space", systemImage: "space") { session.board.newWord() }
                     .disabled(session.board.words.last?.blocks.isEmpty ?? true)
                 Spacer()
-                if suggestionsOn {
+                if suggestionsOn && allowsSuggestions {
                     Button("Suggest", systemImage: "lightbulb", action: suggest)
                     Spacer()
                 }

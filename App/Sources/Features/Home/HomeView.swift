@@ -15,7 +15,7 @@ struct HomeView: View {
                 VStack(spacing: 14) {
                     MenuLink(.training, title: "Training", subtitle: "Say or type a sentence, make it an anagram",
                              symbol: "graduationcap.fill")
-                    MenuLink(.game, title: "Game", subtitle: "Against the clock, or two players", symbol: "gamecontroller.fill")
+                    MenuLink(.game, title: "Game", subtitle: "Against the clock, or 2 to 4 players", symbol: "gamecontroller.fill")
                     MenuLink(.help, title: "Help", subtitle: "How it works", symbol: "questionmark.circle.fill")
                 }
                 .padding(.horizontal, 24)

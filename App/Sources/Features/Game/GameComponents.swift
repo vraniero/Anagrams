@@ -12,8 +12,9 @@ struct GameModesView: View {
                 .padding(.bottom, 24)
                 MenuLink(.clock, title: "Against the clock",
                          subtitle: "\(Int(ClockRound.duration)) seconds: as many words as you can", symbol: "timer")
-                MenuLink(.duel, title: "Two players",
-                         subtitle: "Say a sentence, your friend makes the anagram", symbol: "person.2.fill")
+                MenuLink(.duel, title: "Multiplayer",
+                         subtitle: "2 to 4 players: write a sentence, the next one makes the anagram",
+                         symbol: "person.3.fill")
             }
             .padding(.horizontal, 24)
         }
