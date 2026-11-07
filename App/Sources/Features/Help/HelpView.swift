@@ -10,7 +10,7 @@ struct HelpView: View {
         ("hand.draw.fill", "Move the tiles down",
          "Tap a tile to add it to your anagram, or drag it exactly where you want it. Space starts a new word; tap a tile below to send it back. Punctuation marks are free: add as many as you like. Stuck? Suggest shows possible anagrams."),
         ("checkmark.seal.fill", "Check",
-         "Use every letter, then Check. Each word is looked up in all the languages on your iPhone and shown with its language. In Options you can require all the words to be in one language, and turn suggestions off. In Multiplayer, the time, rounds, languages and scoring are chosen before the game starts."),
+         "Use every letter, then Check. Each word is looked up in all the languages on your iPhone and shown with its language. In Options you can require all the words to be in one language, and turn suggestions off. When an anagram of two or more words also means something, Apple Intelligence tells you, and in the games it scores double. In Multiplayer, the time, rounds, languages and scoring are chosen before the game starts."),
     ]
 
     var body: some View {

@@ -2,7 +2,8 @@ import SwiftUI
 import AnagramEngine
 
 /// Against the clock: say or type a sentence; when you tap Make anagram the clock starts.
-/// Every word you build and check scores its letters (once); a full anagram scores double.
+/// Every word you build and check scores its letters (once); a full anagram scores double,
+/// and double again if its words mean something together.
 struct ClockGameView: View {
     private enum Phase { case sentence, playing, over }
 
@@ -50,7 +51,11 @@ struct ClockGameView: View {
                 Spacer(minLength: 24)
                 ScoreLabel(name: "Score", points: round.score)
             }
-            if !feedback.isEmpty {
+            if session.isCheckingMeaning {
+                Label { Text("Checking the meaning…") } icon: { ProgressView() }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else if !feedback.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(Array(feedback.enumerated()), id: \.offset) { _, outcome in
                         FeedbackChip(outcome: outcome)
@@ -71,9 +76,12 @@ struct ClockGameView: View {
     }
 
     private func check() async {
-        let verdict = await session.evaluate()
         guard phase == .playing else { return }
-        let outcomes = round.score(verdict, source: session.source)
+        let verdict = await session.evaluate()
+        // checked in time: it counts even if the clock runs out while the meaning is read
+        let meaning = await session.meaning(of: verdict)
+        let outcomes = round.score(verdict, source: session.source, meaning: meaning)
+        guard phase == .playing else { return }
         withAnimation(.snappy) { feedback = outcomes }
         // scored: clear the board for the next words; otherwise leave it to fix
         if outcomes.contains(where: { if case .scored = $0 { true } else { false } }) {
@@ -101,7 +109,7 @@ private struct FeedbackChip: View {
     var body: some View {
         let (text, color): (String, Color) = switch outcome {
         case .scored(let found):
-            ("+\(found.points) \(found.isFullAnagram ? "★ anagram" : found.text.lowercased()) · \(languageNames(found.languages))", .green)
+            ("+\(found.points) \(found.isFullAnagram ? (found.meaning != nil ? "★ anagram ✦ makes sense" : "★ anagram") : found.text.lowercased()) · \(languageNames(found.languages))", .green)
         case .alreadyFound(let word): ("\(word.lowercased()): already found", .orange)
         case .notAWord(let word): ("\(word.lowercased()): not a word", .red)
         case .fromSentence(let word): ("\(word.lowercased()): from the sentence", .orange)
@@ -138,6 +146,10 @@ private struct ClockResultView: View {
                             HStack {
                                 Text(found.isFullAnagram ? "★ \(found.text.lowercased())" : found.text.lowercased())
                                     .font(.headline)
+                                if found.meaning != nil {
+                                    Image(systemName: "sparkles").foregroundStyle(.orange)
+                                        .accessibilityLabel("makes sense")
+                                }
                                 Spacer()
                                 Text(languageNames(found.languages)).font(.subheadline).foregroundStyle(.white.opacity(0.6))
                                 Text("+\(found.points)").font(.headline).monospacedDigit()

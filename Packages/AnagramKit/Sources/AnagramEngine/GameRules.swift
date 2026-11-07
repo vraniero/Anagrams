@@ -3,7 +3,8 @@ import AnagramModels
 
 /// Against the clock: build as many words as you can from the sentence's letters before
 /// time runs out. Each word scores its letters, once; a full anagram of the sentence scores
-/// double its letters on top. Words taken straight from the sentence don't count.
+/// double its letters on top, and double again when it means something. Words taken straight
+/// from the sentence don't count.
 public struct ClockRound: Equatable, Sendable {
     public static let duration: TimeInterval = 90
 
@@ -13,6 +14,8 @@ public struct ClockRound: Equatable, Sendable {
         public let languages: [String]
         public let points: Int
         public let isFullAnagram: Bool
+        /// A full anagram that means something (its points are doubled): what it means.
+        public var meaning: String? = nil
         public var id: String { (isFullAnagram ? "*" : "") + text }
     }
 
@@ -30,8 +33,9 @@ public struct ClockRound: Equatable, Sendable {
 
     public init() {}
 
-    /// Scores a checked candidate; what happened to each word, in order.
-    public mutating func score(_ verdict: AnagramVerdict, source: Phrase) -> [Outcome] {
+    /// Scores a checked candidate; what happened to each word, in order. `meaning`: whether
+    /// the full anagram means something, if it was checked.
+    public mutating func score(_ verdict: AnagramVerdict, source: Phrase, meaning: Meaning? = nil) -> [Outcome] {
         let checker = AnagramChecker()
         let sentenceWords = Set(source.words.map { checker.normalized($0.text) })
         if verdict.problems.contains(.mixedLanguages) { return [.mixedLanguages] }
@@ -56,8 +60,10 @@ public struct ClockRound: Equatable, Sendable {
             let text = verdict.words.map(\.text).joined(separator: " ")
             let key = checker.normalized(text)
             if !found.contains(where: { $0.isFullAnagram && checker.normalized($0.text) == key }) {
-                let full = Found(text: text, languages: verdict.words.compactMap(\.language), points: key.count * 2,
-                                 isFullAnagram: true)
+                let sense = meaning?.makesSense == true && Meaning.applies(to: verdict)
+                let full = Found(text: text, languages: verdict.words.compactMap(\.language),
+                                 points: key.count * (sense ? 4 : 2), isFullAnagram: true,
+                                 meaning: sense ? meaning?.reading : nil)
                 found.append(full)
                 outcomes.append(.scored(full))
             }
@@ -89,21 +95,25 @@ public struct Duel: Equatable, Sendable {
         /// All the words of an anagram must be in one language.
         public var sameLanguage: Bool
         public var scoring: Scoring
+        /// An anagram of two or more words that means something scores double.
+        public var meaningBonus: Bool
 
         public init(solveTime: TimeInterval = 120, rounds: Int = 3, sameLanguage: Bool = false,
-                    scoring: Scoring = .lettersAndTime) {
+                    scoring: Scoring = .lettersAndTime, meaningBonus: Bool = false) {
             self.solveTime = max(10, solveTime)
             self.rounds = min(max(rounds, Self.roundRange.lowerBound), Self.roundRange.upperBound)
             self.sameLanguage = sameLanguage
             self.scoring = scoring
+            self.meaningBonus = meaningBonus
         }
 
-        public func points(letters: Int, secondsLeft: TimeInterval) -> Int {
-            switch scoring {
+        public func points(letters: Int, secondsLeft: TimeInterval, makesSense: Bool = false) -> Int {
+            let points = switch scoring {
             case .lettersAndTime: letters + Int(max(0, secondsLeft) / 10)
             case .letters: letters
             case .anagrams: 1
             }
+            return meaningBonus && makesSense ? points * 2 : points
         }
     }
 
@@ -135,9 +145,10 @@ public struct Duel: Equatable, Sendable {
 
     /// Ends the current turn; the points the solver got.
     @discardableResult
-    public mutating func finishTurn(solved: Bool, letters: Int, secondsLeft: TimeInterval) -> Int {
+    public mutating func finishTurn(solved: Bool, letters: Int, secondsLeft: TimeInterval,
+                                    makesSense: Bool = false) -> Int {
         guard !isOver else { return 0 }
-        let points = solved ? settings.points(letters: letters, secondsLeft: secondsLeft) : 0
+        let points = solved ? settings.points(letters: letters, secondsLeft: secondsLeft, makesSense: makesSense) : 0
         scores[solver] += points
         turn += 1
         return points

@@ -9,6 +9,7 @@ extension AnagramVerdict: @retroactive Identifiable {
 struct VerdictView: View {
     let verdict: AnagramVerdict
     @Environment(\.dismiss) private var dismiss
+    @Environment(GameSession.self) private var session
 
     var body: some View {
         VStack(spacing: 20) {
@@ -17,6 +18,8 @@ struct VerdictView: View {
                 .foregroundStyle(verdict.isValid ? .green : .red)
             Text(verdict.isValid ? "Yes! It's an anagram." : "Not yet")
                 .font(.title.bold())
+
+            if verdict.isValid { MeaningNote(meaning: session.meaning, isChecking: session.isCheckingMeaning) }
 
             ForEach(Array(verdict.problems.enumerated()), id: \.offset) { _, problem in
                 Text(message(problem)).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -59,5 +62,33 @@ struct VerdictView: View {
 
     private func name(of code: String) -> String {
         Locale.current.localizedString(forLanguageCode: code)?.capitalized ?? code
+    }
+}
+
+/// Whether the anagram means something, as Apple Intelligence reads it.
+struct MeaningNote: View {
+    let meaning: Meaning?
+    let isChecking: Bool
+
+    var body: some View {
+        Group {
+            if isChecking {
+                Label { Text("Checking the meaning…") } icon: { ProgressView() }
+                    .foregroundStyle(.secondary)
+            } else if let meaning {
+                VStack(spacing: 4) {
+                    Label(meaning.makesSense ? "It makes sense!" : "Real words, but no meaning together",
+                          systemImage: meaning.makesSense ? "sparkles" : "text.word.spacing")
+                        .font(.headline)
+                        .foregroundStyle(meaning.makesSense ? Color.orange : .secondary)
+                    Text(meaning.reading)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+        }
+        .animation(.snappy, value: isChecking)
+        .accessibilityElement(children: .combine)
     }
 }
