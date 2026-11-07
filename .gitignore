@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Xcode (project is generated from project.yml via XcodeGen)
+*.xcodeproj
+*.xcworkspace
+!Packages/**/*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+build-device/
+*.xcresult
+
+# SwiftPM
+.build/
+build-device/
+.swiftpm/
+Package.resolved
+
+# Secrets
+*.p12
+*.mobileprovision
+.env
+
+# Python backend
+.venv/
+__pycache__/
+.pytest_cache/
+*.log
+
+# Generated from project.yml
+App/Info.plist

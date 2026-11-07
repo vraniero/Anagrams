@@ -1,0 +1,100 @@
+import Foundation
+import AnagramEngine
+import AnagramModels
+
+/// Finds possible anagrams with the bundled word lists, then keeps only those whose words
+/// the device's dictionaries accept (the lists have names and typos in them).
+@MainActor
+final class Suggester {
+    private var solver: AnagramSolver?
+    private var known: [String: Bool] = [:]  // "it|amore" -> a word
+
+    func suggest(for source: Phrase, sameLanguage: Bool, validator: any WordValidator) async -> [Suggestion] {
+        let text = source.text
+        guard !text.isEmpty else { return [] }
+        let solver = await loadedSolver()
+        let preferring = source.languageCodes
+        let raw = await Task.detached(priority: .userInitiated) {
+            let candidates = solver.candidates(for: text).filter { $0.rank < 20_000 }
+            return solver.solve(text, candidates: candidates, sameLanguage: sameLanguage,
+                                preferring: preferring, limit: 80, timeLimit: .seconds(2))
+        }.value
+        var result: [Suggestion] = []
+        for suggestion in raw {
+            var ok = true
+            for (word, language) in zip(suggestion.words, suggestion.languages) where ok {
+                ok = await isWord(word, language, validator)
+            }
+            if ok { result.append(suggestion) }
+            if result.count == 10 { break }
+        }
+        return result
+    }
+
+    /// Spell checkers accept any single letter ("n", "m"); these are real one-letter words.
+    static let oneLetterWords: [String: Set<String>] = [
+        "en": ["a", "i"], "it": ["a", "e", "è", "i", "o"], "es": ["a", "e", "o", "u", "y"],
+        "fr": ["a", "à", "y"], "pt": ["a", "à", "e", "é", "o"], "nl": [], "de": [],
+    ]
+
+    private func isWord(_ word: String, _ language: String, _ validator: any WordValidator) async -> Bool {
+        if word.count == 1 { return Self.oneLetterWords[language]?.contains(word.lowercased()) == true }
+        let key = "\(language)|\(word)"
+        if let known = known[key] { return known }
+        let ok = await validator.isWord(word, in: language)
+        known[key] = ok
+        return ok
+    }
+
+    private func loadedSolver() async -> AnagramSolver {
+        if let solver { return solver }
+        let loaded = await Task.detached(priority: .userInitiated) {
+            var lexicons: [String: [String]] = [:]
+            for url in Bundle.main.urls(forResourcesWithExtension: "txt", subdirectory: nil) ?? []
+            where url.lastPathComponent.hasPrefix("lexicon-") {
+                let language = String(url.deletingPathExtension().lastPathComponent.dropFirst("lexicon-".count))
+                lexicons[language] = (try? String(contentsOf: url, encoding: .utf8))?
+                    .split(separator: "\n").map(String.init) ?? []
+            }
+            return AnagramSolver(lexicons: lexicons)
+        }.value
+        solver = loaded
+        return loaded
+    }
+}
+
+/// Sentences the app gives to anagram, by difficulty.
+struct SentenceBank {
+    enum Level: String, CaseIterable, Identifiable {
+        case easy, medium, hard
+        var id: String { rawValue }
+        var title: String { rawValue.capitalized }
+        var detail: String {
+            switch self {
+            case .easy: "One word"
+            case .medium: "A few words"
+            case .hard: "A whole sentence"
+            }
+        }
+    }
+
+    struct Sentence: Decodable, Equatable {
+        let level: String
+        let lang: String
+        let text: String
+    }
+
+    static let all: [Sentence] = {
+        guard let url = Bundle.main.url(forResource: "sentences", withExtension: "json"),
+              let data = try? Data(contentsOf: url) else { return [] }
+        return (try? JSONDecoder().decode([Sentence].self, from: data)) ?? []
+    }()
+
+    static var languages: [String] { Array(Set(all.map(\.lang))).sorted() }
+
+    /// A random sentence of that level (in that language, if given), not the one just played.
+    static func random(_ level: Level, language: String?, avoiding last: String? = nil) -> Sentence? {
+        let pool = all.filter { $0.level == level.rawValue && (language == nil || $0.lang == language) }
+        return pool.filter { $0.text != last }.randomElement() ?? pool.randomElement()
+    }
+}
