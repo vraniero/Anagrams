@@ -1,0 +1,742 @@
+[
+{
+"level": "easy",
+"lang": "en",
+"text": "listen"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "night"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "earth"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "below"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "angel"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "dusty"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "cider"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "secure"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "state"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "lemon"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "inch"
+},
+{
+"level": "easy",
+"lang": "en",
+"text": "heart"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "amore"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "torta"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "mare"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "lago"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "attore"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "ramo"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "seta"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "pane"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "cane"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "caro"
+},
+{
+"level": "easy",
+"lang": "it",
+"text": "rosa"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "amor"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "saco"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "delira"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "sopa"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "lámina"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "orca"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "ramo"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "trama"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "nadie"
+},
+{
+"level": "easy",
+"lang": "es",
+"text": "pesca"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "chien"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "aimer"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "imaginer"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "crâne"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "ironique"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "parisien"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "baignade"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "soigner"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "ancre"
+},
+{
+"level": "easy",
+"lang": "fr",
+"text": "rose"
+},
+{
+"level": "easy",
+"lang": "de",
+"text": "Lampe"
+},
+{
+"level": "easy",
+"lang": "de",
+"text": "Leib"
+},
+{
+"level": "easy",
+"lang": "de",
+"text": "Lager"
+},
+{
+"level": "easy",
+"lang": "de",
+"text": "Erde"
+},
+{
+"level": "easy",
+"lang": "de",
+"text": "Ufer"
+},
+{
+"level": "easy",
+"lang": "de",
+"text": "Neid"
+},
+{
+"level": "easy",
+"lang": "de",
+"text": "Regen"
+},
+{
+"level": "easy",
+"lang": "de",
+"text": "Rose"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "amor"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "pedra"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "porta"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "tema"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "ramo"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "sacro"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "lima"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "prato"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "remo"
+},
+{
+"level": "easy",
+"lang": "pt",
+"text": "pato"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "dormitory"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "the eyes"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "astronomer"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "a gentleman"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "funeral"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "debit card"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "school master"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "the morse code"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "conversation"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "slot machines"
+},
+{
+"level": "medium",
+"lang": "en",
+"text": "dirty rooms"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "la torta"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "il mare"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "una rosa"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "il pane caldo"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "la trota rosa"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "il lago blu"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "un caro amico"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "la sera"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "il ramo verde"
+},
+{
+"level": "medium",
+"lang": "it",
+"text": "la carta"
+},
+{
+"level": "medium",
+"lang": "es",
+"text": "el amor"
+},
+{
+"level": "medium",
+"lang": "es",
+"text": "la sopa caliente"
+},
+{
+"level": "medium",
+"lang": "es",
+"text": "una cosa"
+},
+{
+"level": "medium",
+"lang": "es",
+"text": "el animal"
+},
+{
+"level": "medium",
+"lang": "es",
+"text": "la orca"
+},
+{
+"level": "medium",
+"lang": "es",
+"text": "el ramo"
+},
+{
+"level": "medium",
+"lang": "es",
+"text": "la pesca"
+},
+{
+"level": "medium",
+"lang": "es",
+"text": "un saco"
+},
+{
+"level": "medium",
+"lang": "fr",
+"text": "le chien noir"
+},
+{
+"level": "medium",
+"lang": "fr",
+"text": "aimer la mer"
+},
+{
+"level": "medium",
+"lang": "fr",
+"text": "la migraine"
+},
+{
+"level": "medium",
+"lang": "fr",
+"text": "le crâne"
+},
+{
+"level": "medium",
+"lang": "fr",
+"text": "une rose"
+},
+{
+"level": "medium",
+"lang": "fr",
+"text": "la niche"
+},
+{
+"level": "medium",
+"lang": "fr",
+"text": "le parisien"
+},
+{
+"level": "medium",
+"lang": "fr",
+"text": "la baignade"
+},
+{
+"level": "medium",
+"lang": "de",
+"text": "die Lampe"
+},
+{
+"level": "medium",
+"lang": "de",
+"text": "der Regen"
+},
+{
+"level": "medium",
+"lang": "de",
+"text": "die Palme"
+},
+{
+"level": "medium",
+"lang": "de",
+"text": "ein Lager"
+},
+{
+"level": "medium",
+"lang": "de",
+"text": "die Erde"
+},
+{
+"level": "medium",
+"lang": "de",
+"text": "das Ufer"
+},
+{
+"level": "medium",
+"lang": "de",
+"text": "die Insel"
+},
+{
+"level": "medium",
+"lang": "de",
+"text": "eine Rose"
+},
+{
+"level": "medium",
+"lang": "pt",
+"text": "o padre"
+},
+{
+"level": "medium",
+"lang": "pt",
+"text": "a porta"
+},
+{
+"level": "medium",
+"lang": "pt",
+"text": "o amor"
+},
+{
+"level": "medium",
+"lang": "pt",
+"text": "a pedra"
+},
+{
+"level": "medium",
+"lang": "pt",
+"text": "um prato"
+},
+{
+"level": "medium",
+"lang": "pt",
+"text": "o tema"
+},
+{
+"level": "medium",
+"lang": "pt",
+"text": "a lima"
+},
+{
+"level": "medium",
+"lang": "pt",
+"text": "o remo"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "eleven plus two"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "a decimal point"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "the earthquakes"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "the country side"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "election results"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "the detectives"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "desperation"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "punishment"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "a domesticated animal"
+},
+{
+"level": "hard",
+"lang": "en",
+"text": "the public art galleries"
+},
+{
+"level": "hard",
+"lang": "it",
+"text": "chi va piano va sano e va lontano"
+},
+{
+"level": "hard",
+"lang": "it",
+"text": "tutte le strade portano a Roma"
+},
+{
+"level": "hard",
+"lang": "it",
+"text": "il gatto dorme sul divano"
+},
+{
+"level": "hard",
+"lang": "it",
+"text": "la vita è bella"
+},
+{
+"level": "hard",
+"lang": "it",
+"text": "l'appetito vien mangiando"
+},
+{
+"level": "hard",
+"lang": "it",
+"text": "chi dorme non piglia pesci"
+},
+{
+"level": "hard",
+"lang": "it",
+"text": "il mattino ha l'oro in bocca"
+},
+{
+"level": "hard",
+"lang": "es",
+"text": "más vale tarde que nunca"
+},
+{
+"level": "hard",
+"lang": "es",
+"text": "la vida es sueño"
+},
+{
+"level": "hard",
+"lang": "es",
+"text": "el que no arriesga no gana"
+},
+{
+"level": "hard",
+"lang": "es",
+"text": "en boca cerrada no entran moscas"
+},
+{
+"level": "hard",
+"lang": "es",
+"text": "dime con quién andas"
+},
+{
+"level": "hard",
+"lang": "fr",
+"text": "petit à petit l'oiseau fait son nid"
+},
+{
+"level": "hard",
+"lang": "fr",
+"text": "la nuit tous les chats sont gris"
+},
+{
+"level": "hard",
+"lang": "fr",
+"text": "qui vivra verra"
+},
+{
+"level": "hard",
+"lang": "fr",
+"text": "tout vient à point à qui sait attendre"
+},
+{
+"level": "hard",
+"lang": "de",
+"text": "Übung macht den Meister"
+},
+{
+"level": "hard",
+"lang": "de",
+"text": "Morgenstund hat Gold im Mund"
+},
+{
+"level": "hard",
+"lang": "de",
+"text": "Aller Anfang ist schwer"
+},
+{
+"level": "hard",
+"lang": "de",
+"text": "Lügen haben kurze Beine"
+},
+{
+"level": "hard",
+"lang": "pt",
+"text": "quem espera sempre alcança"
+},
+{
+"level": "hard",
+"lang": "pt",
+"text": "água mole em pedra dura"
+},
+{
+"level": "hard",
+"lang": "pt",
+"text": "devagar se vai ao longe"
+},
+{
+"level": "hard",
+"lang": "pt",
+"text": "quem não arrisca não petisca"
+}
+]
