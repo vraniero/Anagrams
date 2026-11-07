@@ -4,13 +4,13 @@ import SwiftUI
 struct HelpView: View {
     private let steps: [(symbol: String, title: String, text: String)] = [
         ("mic.fill", "Choose a sentence",
-         "Speak in any language: a chime tells you Anagrams is listening, shimmering tiles show it's writing down what you said, then every letter becomes a tile. You can also type, point the camera at something written, or tap Give me a sentence for one at Easy, Medium or Hard."),
+         "Speak in any language: a chime tells you Anagrams is listening, shimmering tiles show it's writing down what you said, then every letter becomes a tile. You can also type, point the camera at something written, or tap Give me a sentence for one at Easy, Medium or Hard. In the games, type the sentence or read it with the camera."),
         ("arrow.down.circle.fill", "Make anagram",
          "Tap Make anagram when the sentence is ready. A second chime: listening stops, no more words come in."),
         ("hand.draw.fill", "Move the tiles down",
          "Tap a tile to add it to your anagram, or drag it exactly where you want it. Space starts a new word; tap a tile below to send it back. Punctuation marks are free: add as many as you like. Stuck? Suggest shows possible anagrams."),
         ("checkmark.seal.fill", "Check",
-         "Use every letter, then Check. Each word is looked up in all the languages on your iPhone and shown with its language. In Options you can require all the words to be in one language, and turn suggestions off."),
+         "Use every letter, then Check. Each word is looked up in all the languages on your iPhone and shown with its language. In Options you can require all the words to be in one language, and turn suggestions off. In Multiplayer, the time, rounds, languages and scoring are chosen before the game starts."),
     ]
 
     var body: some View {

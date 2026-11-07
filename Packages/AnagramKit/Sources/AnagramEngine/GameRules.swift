@@ -66,44 +66,78 @@ public struct ClockRound: Equatable, Sendable {
     }
 }
 
-/// Two players take turns: one says (or types) a sentence, the other has a limited time to
-/// make a full anagram of it. A solved anagram scores its letters plus a point for every
-/// ten seconds left.
+/// Players (2 to 4) take turns: one writes a sentence, the next has a limited time to make
+/// a full anagram of it. Each round, everyone sets a sentence once. The rules are chosen
+/// before the game starts and don't change while it's played.
 public struct Duel: Equatable, Sendable {
-    public static let solveTime: TimeInterval = 120
+    public struct Settings: Equatable, Sendable {
+        public enum Scoring: String, CaseIterable, Sendable {
+            /// A point per letter, plus one for every ten seconds left.
+            case lettersAndTime
+            /// A point per letter.
+            case letters
+            /// A point per anagram.
+            case anagrams
+        }
+
+        public static let times: [TimeInterval] = [60, 120, 180, 300]
+        public static let playerRange = 2...4
+        public static let roundRange = 1...10
+
+        public var solveTime: TimeInterval
+        public var rounds: Int
+        /// All the words of an anagram must be in one language.
+        public var sameLanguage: Bool
+        public var scoring: Scoring
+
+        public init(solveTime: TimeInterval = 120, rounds: Int = 3, sameLanguage: Bool = false,
+                    scoring: Scoring = .lettersAndTime) {
+            self.solveTime = max(10, solveTime)
+            self.rounds = min(max(rounds, Self.roundRange.lowerBound), Self.roundRange.upperBound)
+            self.sameLanguage = sameLanguage
+            self.scoring = scoring
+        }
+
+        public func points(letters: Int, secondsLeft: TimeInterval) -> Int {
+            switch scoring {
+            case .lettersAndTime: letters + Int(max(0, secondsLeft) / 10)
+            case .letters: letters
+            case .anagrams: 1
+            }
+        }
+    }
 
     public let players: [String]
-    public let rounds: Int
-    public private(set) var scores: [Int] = [0, 0]
-    /// Turns played; each round is two turns, so both players set a sentence once.
+    public let settings: Settings
+    public private(set) var scores: [Int]
+    /// Turns played; a round is one turn per player, so everyone sets a sentence once.
     public private(set) var turn = 0
 
-    public init(players: [String], rounds: Int) {
-        precondition(players.count == 2)
+    public init(players: [String], settings: Settings = Settings()) {
+        precondition(Settings.playerRange.contains(players.count))
         self.players = players
-        self.rounds = max(1, rounds)
+        self.settings = settings
+        scores = Array(repeating: 0, count: players.count)
     }
 
-    public var setter: Int { turn % 2 }
-    public var solver: Int { 1 - setter }
-    public var round: Int { turn / 2 + 1 }
-    public var isOver: Bool { turn >= rounds * 2 }
+    public var rounds: Int { settings.rounds }
+    /// Who writes the sentence; the next player solves it.
+    public var setter: Int { turn % players.count }
+    public var solver: Int { (setter + 1) % players.count }
+    public var round: Int { turn / players.count + 1 }
+    public var isOver: Bool { turn >= rounds * players.count }
 
-    /// The leader once the game is over; nil while playing or on a draw.
+    /// The leader once the game is over; nil while playing or on a tie for first.
     public var winner: Int? {
-        guard isOver, scores[0] != scores[1] else { return nil }
-        return scores[0] > scores[1] ? 0 : 1
-    }
-
-    public static func points(letters: Int, secondsLeft: TimeInterval) -> Int {
-        letters + Int(max(0, secondsLeft) / 10)
+        guard isOver, let best = scores.max(), scores.filter({ $0 == best }).count == 1 else { return nil }
+        return scores.firstIndex(of: best)
     }
 
     /// Ends the current turn; the points the solver got.
     @discardableResult
     public mutating func finishTurn(solved: Bool, letters: Int, secondsLeft: TimeInterval) -> Int {
         guard !isOver else { return 0 }
-        let points = solved ? Self.points(letters: letters, secondsLeft: secondsLeft) : 0
+        let points = solved ? settings.points(letters: letters, secondsLeft: secondsLeft) : 0
         scores[solver] += points
         turn += 1
         return points

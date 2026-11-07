@@ -17,7 +17,8 @@ struct ClockGameView: View {
         Group {
             switch phase {
             case .sentence:
-                ListeningView(prompt: "Say or type a sentence. The clock starts when you tap Make anagram.")
+                ListeningView(prompt: "Type a sentence, or read one with the camera. The clock starts when you tap Make anagram.",
+                              voice: false)
             case .playing:
                 BoardView(header: AnyView(header),
                           leading: BoardAction(title: "Stop", symbol: "stop.fill") { finish() },

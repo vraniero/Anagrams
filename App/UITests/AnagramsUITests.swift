@@ -80,10 +80,14 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testAgainstTheClock() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", "Listen"]
+        app.launchArguments = ["-demoText", ""]
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Against the clock"].tap()
+        XCTAssertFalse(app.staticTexts["Speak in any language"].exists)
+        XCTAssertFalse(app.buttons["Give me a sentence"].exists)
+        typeSentence(app, "Listen")
+        shot(app, "8-clock-sentence")
         tapMakeAnagram(app)
         for letter in ["S", "I", "L", "E", "N", "T"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
         app.buttons["Check"].tap()
@@ -94,34 +98,43 @@ final class AnagramsUITests: XCTestCase {
         shot(app, "9-clock-over")
     }
 
-    /// Two players: set, hand over, solve, see the points.
+    /// Multiplayer: players and rules first, then set, hand over, solve, see the points.
     @MainActor
-    func testTwoPlayers() throws {
+    func testMultiplayer() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", "Listen"]
+        app.launchArguments = ["-demoText", "", "-duel.players", ""]
         app.launch()
         app.buttons["Game"].tap()
-        app.buttons["Two players"].tap()
-        let first = app.textFields.element(boundBy: 0)
-        first.tap()
-        first.typeText("Ada")
-        let second = app.textFields.element(boundBy: 1)
-        second.tap()
-        second.typeText("Bo")
-        shot(app, "10-duel-setup")
+        app.buttons["Multiplayer"].tap()
+        app.buttons["Add player"].tap()
+        for (i, name) in ["Ada", "Bo", "Cy"].enumerated() {
+            let field = app.textFields.element(boundBy: i)
+            field.tap()
+            field.typeText(name)
+        }
+        app.buttons["1 min"].tap()
+        app.buttons["One language"].tap()
+        app.buttons["Letters"].tap()
+        XCTAssertTrue(app.staticTexts["A point per letter of the sentence."].exists)
+        shot(app, "10-multi-setup")
+        app.swipeUp()
         app.buttons["Start"].tap()
-        XCTAssertTrue(app.staticTexts["Ada: say or type a sentence for Bo."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Ada: type a sentence for Bo, or read one with the camera."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Options"].exists)
+        typeSentence(app, "Listen")
         tapMakeAnagram(app)
         XCTAssertTrue(app.staticTexts["Pass the phone to Bo"].waitForExistence(timeout: 3))
-        shot(app, "11-duel-handoff")
+        XCTAssertTrue(app.staticTexts["6 letters, 1 minute to make an anagram."].exists)
+        shot(app, "11-multi-handoff")
         app.buttons["I'm ready"].tap()
+        XCTAssertFalse(app.buttons["Suggest"].exists)
         for letter in ["S", "I", "L", "E", "N", "T"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
-        shot(app, "12-duel-solving")
+        shot(app, "12-multi-solving")
         app.buttons["Check"].tap()
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Bo did it!'")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Bo did it! +6"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["English"].exists)
-        shot(app, "13-duel-result")
-        XCTAssertTrue(app.buttons["Next: Bo says a sentence"].exists)
+        shot(app, "13-multi-result")
+        XCTAssertTrue(app.buttons["Next: Bo writes a sentence"].exists)
     }
 
     /// A sentence from the app, a suggestion laid out, a free "!" added: it's an anagram.
@@ -156,6 +169,14 @@ final class AnagramsUITests: XCTestCase {
     }
 
     @MainActor
+    /// Types the sentence in the field (the games have no voice).
+    private func typeSentence(_ app: XCUIApplication, _ text: String) {
+        let field = app.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText(text + "\n")
+    }
+
     private func tapMakeAnagram(_ app: XCUIApplication) {
         let make = app.buttons["Make anagram"]
         XCTAssertTrue(make.waitForExistence(timeout: 5))

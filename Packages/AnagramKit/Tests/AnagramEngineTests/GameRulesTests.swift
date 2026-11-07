@@ -34,7 +34,7 @@ struct ClockRoundTests {
 
 struct DuelTests {
     @Test func playersTakeTurnsAndScore() {
-        var duel = Duel(players: ["Ada", "Bo"], rounds: 1)
+        var duel = Duel(players: ["Ada", "Bo"], settings: .init(rounds: 1))
         #expect(duel.setter == 0 && duel.solver == 1)
         #expect(duel.finishTurn(solved: true, letters: 6, secondsLeft: 45) == 10)
         #expect(duel.setter == 1 && duel.solver == 0)
@@ -46,9 +46,38 @@ struct DuelTests {
     }
 
     @Test func drawHasNoWinner() {
-        var duel = Duel(players: ["Ada", "Bo"], rounds: 1)
+        var duel = Duel(players: ["Ada", "Bo"], settings: .init(rounds: 1))
         duel.finishTurn(solved: true, letters: 5, secondsLeft: 0)
         duel.finishTurn(solved: true, letters: 5, secondsLeft: 0)
         #expect(duel.winner == nil && duel.isOver)
+    }
+
+    @Test func threePlayersEachSetOncePerRound() {
+        var duel = Duel(players: ["Ada", "Bo", "Cy"], settings: .init(rounds: 2, scoring: .letters))
+        var pairs: [[Int]] = []
+        while !duel.isOver {
+            pairs.append([duel.setter, duel.solver])
+            duel.finishTurn(solved: true, letters: 4 + duel.solver, secondsLeft: 50)
+        }
+        #expect(pairs == [[0, 1], [1, 2], [2, 0], [0, 1], [1, 2], [2, 0]])
+        #expect(duel.round == 3)
+        #expect(duel.scores == [8, 10, 12])  // letters only: no time bonus
+        #expect(duel.winner == 2)
+    }
+
+    @Test func scoringModels() {
+        #expect(Duel.Settings(scoring: .lettersAndTime).points(letters: 6, secondsLeft: 45) == 10)
+        #expect(Duel.Settings(scoring: .letters).points(letters: 6, secondsLeft: 45) == 6)
+        #expect(Duel.Settings(scoring: .anagrams).points(letters: 6, secondsLeft: 45) == 1)
+        #expect(Duel.Settings(rounds: 99).rounds == 10)
+    }
+
+    @Test func tieForFirstHasNoWinner() {
+        var duel = Duel(players: ["Ada", "Bo", "Cy"], settings: .init(rounds: 1, scoring: .anagrams))
+        duel.finishTurn(solved: true, letters: 5, secondsLeft: 0)   // Bo
+        duel.finishTurn(solved: true, letters: 5, secondsLeft: 0)   // Cy
+        duel.finishTurn(solved: false, letters: 5, secondsLeft: 0)  // Ada
+        #expect(duel.scores == [0, 1, 1])
+        #expect(duel.winner == nil)
     }
 }

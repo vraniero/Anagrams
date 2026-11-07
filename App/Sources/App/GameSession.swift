@@ -23,6 +23,9 @@ final class GameSession {
     private(set) var pending = 0
     var isProcessing: Bool { pending > 0 }
     private(set) var error: String?
+    /// A game's own language rule, chosen before it started; otherwise the Options one.
+    var sameLanguageRule: Bool?
+    private var sameLanguage: Bool { sameLanguageRule ?? Options.sameLanguage }
 
     private let transcriber: any SpeechTranscriber
     private let judge: AnagramJudge
@@ -91,8 +94,10 @@ final class GameSession {
 
     /// Stops listening: what was already said is still added, nothing said afterwards.
     func makeAnagram() {
-        transcriber.finish()
-        sounds.playStop()
+        if isListening {
+            transcriber.finish()
+            sounds.playStop()
+        }
         isTalking = false
         board = AnagramBoard(source: source)
         stage = .building
@@ -127,12 +132,12 @@ final class GameSession {
     func evaluate() async -> AnagramVerdict {
         isChecking = true
         defer { isChecking = false }
-        return await judge.judge(board.candidate, source: source, sameLanguage: Options.sameLanguage)
+        return await judge.judge(board.candidate, source: source, sameLanguage: sameLanguage)
     }
 
     /// Possible anagrams of the sentence (words checked with the same dictionaries as Check).
     func suggestions() async -> [Suggestion] {
-        await suggester.suggest(for: source, sameLanguage: Options.sameLanguage, validator: validator)
+        await suggester.suggest(for: source, sameLanguage: sameLanguage, validator: validator)
     }
 
     func restart() {

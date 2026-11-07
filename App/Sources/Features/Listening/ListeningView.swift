@@ -6,6 +6,9 @@ struct ListeningView: View {
     @Environment(GameSession.self) private var session
     /// What to do, shown on top (the game modes: whose turn it is).
     var prompt: String? = nil
+    /// Training: the sentence can be said, and the app can give one. The games: typed or
+    /// read with the camera only.
+    var voice = true
     @State private var typed = ""
     @FocusState private var isTyping: Bool
     @State private var showsCamera = false
@@ -20,8 +23,10 @@ struct ListeningView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
-            status
-                .frame(height: 72)
+            if voice {
+                status
+                    .frame(height: 72)
+            }
             ScrollView {
                 PhraseBlocksView(phrase: session.source, isWorking: session.isProcessing)
                     .padding(.horizontal)
@@ -51,7 +56,7 @@ struct ListeningView: View {
             .disabled(session.source.words.isEmpty)
         }
         .padding(.vertical)
-        .onAppear { session.startListening() }
+        .onAppear { if voice { session.startListening() } }
         .sheet(isPresented: $showsCamera) {
             TextScannerView { text in
                 withAnimation { session.startOver(with: text) }
@@ -62,7 +67,7 @@ struct ListeningView: View {
     /// A field to type the sentence (or add to what was said).
     private var typing: some View {
         HStack {
-            TextField("…or type a sentence", text: $typed)
+            TextField(voice ? "…or type a sentence" : "Type a sentence", text: $typed)
                 .focused($isTyping)
                 .submitLabel(.done)
                 .autocorrectionDisabled()
@@ -88,29 +93,34 @@ struct ListeningView: View {
                     showsCamera = true
                 }
             }
-            Menu {
-                Picker("Language", selection: $sentenceLanguage) {
-                    Text("Any language").tag("")
-                    ForEach(SentenceBank.languages, id: \.self) { code in
-                        Text(languageName(code) ?? code).tag(code)
-                    }
-                }
-                .pickerStyle(.menu)
-                Section("Difficulty") {
-                    ForEach(SentenceBank.Level.allCases) { level in
-                        Button {
-                            give(level)
-                        } label: {
-                            Text(level.title)
-                            Text(level.detail)
-                        }
-                    }
-                }
-            } label: {
-                Label("Give me a sentence", systemImage: "dice")
-            }
+            if voice { giveMenu }
         }
         .buttonStyle(.bordered)
+    }
+
+    /// A sentence from the app, at a chosen difficulty.
+    private var giveMenu: some View {
+        Menu {
+            Picker("Language", selection: $sentenceLanguage) {
+                Text("Any language").tag("")
+                ForEach(SentenceBank.languages, id: \.self) { code in
+                    Text(languageName(code) ?? code).tag(code)
+                }
+            }
+            .pickerStyle(.menu)
+            Section("Difficulty") {
+                ForEach(SentenceBank.Level.allCases) { level in
+                    Button {
+                        give(level)
+                    } label: {
+                        Text(level.title)
+                        Text(level.detail)
+                    }
+                }
+            }
+        } label: {
+            Label("Give me a sentence", systemImage: "dice")
+        }
     }
 
     private func give(_ level: SentenceBank.Level) {
