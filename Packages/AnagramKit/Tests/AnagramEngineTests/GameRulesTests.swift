@@ -24,6 +24,25 @@ struct ClockRoundTests {
         #expect(round.found.map(\.languages) == [["en"], ["en"]])
     }
 
+    @Test func aMeaningfulFullAnagramScoresDoubleAgain() async {
+        var round = ClockRound()
+        let verdict = await judge.judge(Phrase(text: "lens tin"), source: Phrase(text: "silent n", languageCode: "en"))
+        #expect(verdict.isValid)
+        let sense = Meaning(makesSense: true, reading: "A lens made of tin.")
+        _ = round.score(verdict, source: Phrase(text: "silent n", languageCode: "en"), meaning: sense)
+        let full = round.found.last
+        #expect(full?.isFullAnagram == true && full?.points == 7 * 4 && full?.meaning == "A lens made of tin.")
+
+        // no sense, or a single word: no bonus
+        var plain = ClockRound()
+        _ = plain.score(verdict, source: Phrase(text: "silent n", languageCode: "en"),
+                        meaning: Meaning(makesSense: false, reading: "Just two words."))
+        #expect(plain.found.last?.points == 14 && plain.found.last?.meaning == nil)
+        var single = ClockRound()
+        _ = single.score(await judge.judge(Phrase(text: "silent"), source: source), source: source, meaning: sense)
+        #expect(single.found.last?.points == 12)
+    }
+
     @Test func sentenceWordsAndNonWordsDontScore() async {
         var round = ClockRound()
         let outcomes = round.score(await judge.judge(Phrase(text: "listen tsil"), source: source), source: source)
@@ -72,6 +91,14 @@ struct DuelTests {
         #expect(Duel.Settings(rounds: 99).rounds == 10)
     }
 
+    @Test func meaningBonusDoublesWhenOn() {
+        #expect(Duel.Settings(scoring: .letters, meaningBonus: true).points(letters: 6, secondsLeft: 0, makesSense: true) == 12)
+        #expect(Duel.Settings(scoring: .letters, meaningBonus: true).points(letters: 6, secondsLeft: 0, makesSense: false) == 6)
+        #expect(Duel.Settings(scoring: .letters, meaningBonus: false).points(letters: 6, secondsLeft: 0, makesSense: true) == 6)
+        var duel = Duel(players: ["Ada", "Bo"], settings: .init(rounds: 1, scoring: .anagrams, meaningBonus: true))
+        #expect(duel.finishTurn(solved: true, letters: 8, secondsLeft: 30, makesSense: true) == 2)
+    }
+
     @Test func tieForFirstHasNoWinner() {
         var duel = Duel(players: ["Ada", "Bo", "Cy"], settings: .init(rounds: 1, scoring: .anagrams))
         duel.finishTurn(solved: true, letters: 5, secondsLeft: 0)   // Bo
@@ -79,5 +106,15 @@ struct DuelTests {
         duel.finishTurn(solved: false, letters: 5, secondsLeft: 0)  // Ada
         #expect(duel.scores == [0, 1, 1])
         #expect(duel.winner == nil)
+    }
+}
+
+struct MeaningTests {
+    @Test func reorderingIsSameWordsInAnotherOrder() {
+        #expect(Meaning.isReordering("il mare blu", of: "mare il blu"))
+        #expect(Meaning.isReordering("A dog barks.", of: "barks a dog!"))
+        #expect(!Meaning.isReordering("il mare blu", of: "Il mare, blu"))   // same order
+        #expect(!Meaning.isReordering("an elegant man", of: "elegant man"))  // a word added
+        #expect(!Meaning.isReordering("the sun rises", of: "el sol sale"))   // translated
     }
 }

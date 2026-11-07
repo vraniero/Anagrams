@@ -45,6 +45,8 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1"
+        # Apple Intelligence (meaning check) exists from iOS 26; the app still runs on iOS 18
+        OTHER_LDFLAGS: ["$(inherited)", "-weak_framework", "FoundationModels"]
   AnagramsTests:
     type: bundle.unit-test
     platform: iOS

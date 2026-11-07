@@ -7,7 +7,7 @@ import AnagramEngine
 struct DuelGameView: View {
     private enum Phase: Equatable {
         case setup, setting, handoff, solving
-        case result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord])
+        case result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord], meaning: Meaning?)
         case over
     }
 
@@ -33,8 +33,8 @@ struct DuelGameView: View {
                           leading: BoardAction(title: "Give up", symbol: "flag.fill") { endTurn(solved: false) },
                           onCheck: check,
                           allowsSuggestions: false)
-            case let .result(points, solved, answer):
-                result(points: points, solved: solved, answer: answer)
+            case let .result(points, solved, answer, meaning):
+                result(points: points, solved: solved, answer: answer, meaning: meaning)
             case .over:
                 over
             }
@@ -85,7 +85,12 @@ struct DuelGameView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            if let end { Countdown(start: start, end: end) }
+            if let end {
+                Countdown(start: start, end: end)
+            } else if session.isCheckingMeaning {
+                Label { Text("Solved! Checking the meaning…") } icon: { ProgressView() }
+                    .font(.headline)
+            }
             HStack(alignment: .top, spacing: 14) {
                 ForEach(duel.players.indices, id: \.self) { i in
                     ScoreLabel(name: duel.players[i], points: duel.scores[i])
@@ -97,7 +102,7 @@ struct DuelGameView: View {
         .padding()
     }
 
-    private func result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord]) -> some View {
+    private func result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord], meaning: Meaning?) -> some View {
         ThemedScreen {
             ScrollView {
                 VStack(spacing: 18) {
@@ -124,6 +129,18 @@ struct DuelGameView: View {
                         }
                     }
                     .foregroundStyle(Theme.cream)
+                    if solved, let meaning {
+                        VStack(spacing: 4) {
+                            Label(meaning.makesSense ? "It makes sense: double points!" : "No meaning bonus",
+                                  systemImage: meaning.makesSense ? "sparkles" : "text.word.spacing")
+                                .font(.headline)
+                                .foregroundStyle(meaning.makesSense ? Color.orange : Theme.glowLight)
+                            Text(meaning.reading)
+                                .font(.subheadline)
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.white.opacity(0.75))
+                        }
+                    }
                     scoreboard
                     Button(duel.isOver ? "See who won" : "Next: \(setter) writes a sentence", action: next)
                         .buttonStyle(CreamButtonStyle())
@@ -192,21 +209,27 @@ struct DuelGameView: View {
     }
 
     private func check() async {
+        let secondsLeft = end?.timeIntervalSinceNow ?? 0
         let verdict = await session.evaluate()
         guard phase == .solving else { return }
-        if verdict.isValid {
-            endTurn(solved: true, answer: verdict.words)
-        } else {
+        guard verdict.isValid else {
             session.verdict = verdict  // "Not yet", and why
+            return
         }
+        end = nil  // solved: the clock stops while the meaning is read
+        let meaning = duel.settings.meaningBonus ? await session.meaning(of: verdict) : nil
+        guard phase == .solving else { return }
+        endTurn(solved: true, answer: verdict.words, secondsLeft: secondsLeft, meaning: meaning)
     }
 
-    private func endTurn(solved: Bool, answer: [AnagramVerdict.CheckedWord] = []) {
-        let secondsLeft = end?.timeIntervalSinceNow ?? 0
+    private func endTurn(solved: Bool, answer: [AnagramVerdict.CheckedWord] = [], secondsLeft: TimeInterval? = nil,
+                         meaning: Meaning? = nil) {
+        let secondsLeft = secondsLeft ?? end?.timeIntervalSinceNow ?? 0
         end = nil
         session.verdict = nil
-        let points = duel.finishTurn(solved: solved, letters: letters, secondsLeft: secondsLeft)
-        withAnimation { phase = .result(points: points, solved: solved, answer: answer) }
+        let points = duel.finishTurn(solved: solved, letters: letters, secondsLeft: secondsLeft,
+                                     makesSense: meaning?.makesSense == true)
+        withAnimation { phase = .result(points: points, solved: solved, answer: answer, meaning: meaning) }
     }
 
     private func next() {
@@ -253,6 +276,7 @@ private struct RulesSummary: View {
             chip(settings.sameLanguage ? "One language" : "Any languages", "character.book.closed")
             chip(settings.scoring.title, "star")
             chip("\(settings.rounds) \(settings.rounds == 1 ? "round" : "rounds")", "repeat")
+            if settings.meaningBonus { chip("Meaning ×2", "sparkles") }
         }
     }
 
@@ -275,6 +299,8 @@ private struct DuelSetupView: View {
     @AppStorage("duel.rounds") private var rounds = 3
     @AppStorage("duel.sameLanguage") private var sameLanguage = false
     @AppStorage("duel.scoring") private var scoring = Duel.Settings.Scoring.lettersAndTime.rawValue
+    @AppStorage("duel.meaningBonus") private var meaningBonus = true
+    @Environment(GameSession.self) private var session
     private struct Entry: Identifiable {
         let id = UUID()
         var name = ""
@@ -357,6 +383,18 @@ private struct DuelSetupView: View {
                             Text(scoringChoice.wrappedValue.detail)
                                 .font(.footnote).foregroundStyle(.white.opacity(0.7))
                         }
+                        rule("Meaning bonus") {
+                            Toggle(isOn: $meaningBonus) {
+                                Text("Double points when the anagram means something")
+                                    .foregroundStyle(.white)
+                            }
+                            .disabled(!session.canCheckMeaning)
+                            .tint(Theme.glow)
+                            Text(session.canCheckMeaning
+                                 ? "For anagrams of two or more words. Apple Intelligence reads them on this iPhone."
+                                 : "Needs Apple Intelligence, which isn't available on this iPhone.")
+                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                        }
                     }
 
                     Text("In turn, each player writes a sentence and passes the phone to the next, who makes the anagram. No suggestions in a game.")
@@ -409,6 +447,7 @@ private struct DuelSetupView: View {
             return trimmed.isEmpty ? "Player \(i + 1)" : trimmed
         }
         start(players, Duel.Settings(solveTime: time, rounds: rounds, sameLanguage: sameLanguage,
-                                     scoring: scoringChoice.wrappedValue))
+                                     scoring: scoringChoice.wrappedValue,
+                                     meaningBonus: meaningBonus && session.canCheckMeaning))
     }
 }

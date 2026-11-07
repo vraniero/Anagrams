@@ -46,7 +46,7 @@ final class AnagramsUITests: XCTestCase {
     /// The sentence can be typed instead of said.
     @MainActor
     func testTypeASentence() throws {
-        let app = launch(["-demoText", ""])
+        let app = launch(["-demoText", "", "-meaning", "yes"])
         let field = app.textFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
@@ -60,6 +60,8 @@ final class AnagramsUITests: XCTestCase {
         shot(app, "7-typed-built")
         app.buttons["Check"].tap()
         XCTAssertTrue(app.staticTexts["Yes! It's an anagram."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["It makes sense!"].waitForExistence(timeout: 5))
+        shot(app, "7-typed-meaning")
     }
 
     /// The home menu leads to Help and back.
@@ -102,7 +104,7 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testMultiplayer() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", "", "-duel.players", ""]
+        app.launchArguments = ["-demoText", "", "-duel.players", "", "-meaning", "yes", "-duel.meaningBonus", "YES"]
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Multiplayer"].tap()
@@ -121,17 +123,22 @@ final class AnagramsUITests: XCTestCase {
         app.buttons["Start"].tap()
         XCTAssertTrue(app.staticTexts["Ada: type a sentence for Bo, or read one with the camera."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Options"].exists)
-        typeSentence(app, "Listen")
+        typeSentence(app, "Dormitory")
         tapMakeAnagram(app)
         XCTAssertTrue(app.staticTexts["Pass the phone to Bo"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["6 letters, 1 minute to make an anagram."].exists)
+        XCTAssertTrue(app.staticTexts["9 letters, 1 minute to make an anagram."].exists)
+        XCTAssertTrue(app.staticTexts["Meaning ×2"].exists)
         shot(app, "11-multi-handoff")
         app.buttons["I'm ready"].tap()
         XCTAssertFalse(app.buttons["Suggest"].exists)
-        for letter in ["S", "I", "L", "E", "N", "T"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
+        for letter in ["D", "I", "R", "T", "Y"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
+        app.buttons["Space"].tap()
+        for letter in ["R", "O", "O", "M"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
         shot(app, "12-multi-solving")
         app.buttons["Check"].tap()
-        XCTAssertTrue(app.staticTexts["Bo did it! +6"].waitForExistence(timeout: 10))
+        // letters scoring: 9, doubled because it means something
+        XCTAssertTrue(app.staticTexts["Bo did it! +18"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["It makes sense: double points!"].exists)
         XCTAssertTrue(app.staticTexts["English"].exists)
         shot(app, "13-multi-result")
         XCTAssertTrue(app.buttons["Next: Bo writes a sentence"].exists)

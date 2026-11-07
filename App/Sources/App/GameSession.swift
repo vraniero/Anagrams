@@ -15,6 +15,10 @@ final class GameSession {
     private(set) var source = Phrase()
     var board = AnagramBoard()
     var verdict: AnagramVerdict?
+    /// Whether the last valid anagram means something (training shows it under the verdict).
+    private(set) var meaning: Meaning?
+    private(set) var isCheckingMeaning = false
+    var canCheckMeaning: Bool { meaningChecker.isAvailable }
     private(set) var isChecking = false
     private(set) var isListening = false
     private(set) var isConnecting = false  // the backend loads Whisper on first connection
@@ -31,11 +35,14 @@ final class GameSession {
     private let judge: AnagramJudge
     private let validator: any WordValidator
     private let suggester = Suggester()
+    private let meaningChecker: any MeaningChecker
     private let sounds = ListeningSounds()
     private var listenTask: Task<Void, Never>?
     private var generation = 0  // bumped by restart: a stale listening task changes nothing
 
-    init(transcriber: (any SpeechTranscriber)? = nil, validator: (any WordValidator)? = nil) {
+    init(transcriber: (any SpeechTranscriber)? = nil, validator: (any WordValidator)? = nil,
+         meaningChecker: (any MeaningChecker)? = nil) {
+        self.meaningChecker = meaningChecker ?? Self.defaultMeaningChecker()
         self.transcriber = transcriber ?? Self.defaultTranscriber()
         let validator = validator ?? Self.defaultValidator()
         self.validator = validator
@@ -58,6 +65,18 @@ final class GameSession {
         }
         #endif
         return DemoTranscriber()
+    }
+
+    private static func defaultMeaningChecker() -> any MeaningChecker {
+        // -meaning "yes" or "no": a fixed answer (UI tests; the real model's wording varies)
+        let args = CommandLine.arguments
+        if let i = args.firstIndex(of: "-meaning"), i + 1 < args.count {
+            return FixedMeaningChecker(makesSense: args[i + 1] == "yes")
+        }
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return FixedMeaningChecker(makesSense: nil)
+        }
+        return OnDeviceMeaningChecker()
     }
 
     private static func defaultValidator() -> any WordValidator {
@@ -123,9 +142,22 @@ final class GameSession {
         source = Phrase()
     }
 
-    /// Shows the verdict on the board (training).
+    /// Shows the verdict on the board (training), then whether it means something.
     func check() async {
-        verdict = await evaluate()
+        meaning = nil
+        let verdict = await evaluate()
+        self.verdict = verdict
+        meaning = await meaning(of: verdict)
+    }
+
+    /// Whether a correct anagram of two or more words means something; nil if it isn't
+    /// one, or it can't be told on this iPhone.
+    func meaning(of verdict: AnagramVerdict) async -> Meaning? {
+        guard Meaning.applies(to: verdict), meaningChecker.isAvailable else { return nil }
+        isCheckingMeaning = true
+        defer { isCheckingMeaning = false }
+        return await meaningChecker.meaning(of: board.candidate.text,
+                                            languages: verdict.words.compactMap(\.language))
     }
 
     /// Judges the anagram being built, without showing anything (the game modes decide).
@@ -151,6 +183,7 @@ final class GameSession {
         source = Phrase()
         board = AnagramBoard()
         verdict = nil
+        meaning = nil
         stage = .listening
     }
 
@@ -169,5 +202,17 @@ final class GameSession {
             source.append(text: u.text, languageCode: u.lang)
             if stage == .building { board.updateSource(source) }
         }
+    }
+}
+
+/// Always the same answer (nil: can't check).
+struct FixedMeaningChecker: MeaningChecker {
+    let makesSense: Bool?
+    var isAvailable: Bool { makesSense != nil }
+
+    func meaning(of phrase: String, languages: [String]) async -> Meaning? {
+        guard let makesSense else { return nil }
+        try? await Task.sleep(for: .milliseconds(300))
+        return Meaning(makesSense: makesSense, reading: makesSense ? "It reads as a real phrase." : "Just words side by side.")
     }
 }
