@@ -3,10 +3,10 @@ import SwiftUI
 /// How the app works, on the icon's night background.
 struct HelpView: View {
     private let steps: [(symbol: String, title: String, text: String)] = [
-        ("mic.fill", "Choose a sentence",
-         "Speak in any language: a chime tells you Anagrams is listening, shimmering tiles show it's writing down what you said, then every letter becomes a tile. You can also type, point the camera at something written, or tap Give me a sentence for one at Easy, Medium or Hard. In the games, type the sentence or read it with the camera. Its spelling and grammar are checked, and a fix is offered; in Multiplayer the sentence must be correct."),
+        ("character.cursor.ibeam", "Choose a sentence",
+         "Type a sentence in any language: every letter becomes a tile as you type. Or point the camera at something written, or tap Give me a sentence for one at Easy, Medium or Hard, from the app's sentences or last week's newspapers. Against the clock, the app gives you the sentence. Its spelling and grammar are checked, and a fix is offered; in Multiplayer the sentence must be correct."),
         ("arrow.down.circle.fill", "Make anagram",
-         "Tap Make anagram when the sentence is ready. A second chime: listening stops, no more words come in."),
+         "Tap Make anagram when the sentence is ready: its tiles move to the board."),
         ("hand.draw.fill", "Move the tiles down",
          "Tap a tile to add it to your anagram, or drag it exactly where you want it. Space starts a new word; tap a tile below to send it back. Punctuation marks are free: add as many as you like. So are accents: a letter loses its accent when it moves down, and the accent buttons put one on the last letter of your anagram (tap again to take it off). Stuck? Suggest shows possible anagrams."),
         ("checkmark.seal.fill", "Check",

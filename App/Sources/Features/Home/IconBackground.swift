@@ -3,6 +3,9 @@ import SwiftUI
 /// The icon's night sky, alive: blue glows drift slowly and cream letter tiles float up,
 /// turning gently, changing letter each time they come round again. Holds still when
 /// Reduce Motion is on.
+///
+/// Cheap to draw, since it sits behind every screen: 30 frames a second (it drifts slowly),
+/// and each letter tile is rendered once and reused.
 struct IconBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -10,11 +13,15 @@ struct IconBackground: View {
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
     var body: some View {
-        TimelineView(.animation(paused: reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
             let t = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, size in
                 drawGlows(&context, size, t)
                 for i in 0..<Self.tiles { drawTile(i, &context, size, t) }
+            } symbols: {
+                ForEach(Self.alphabet.indices, id: \.self) { n in
+                    TileSymbol(letter: Self.alphabet[n]).tag(n)
+                }
             }
         }
         .background(Theme.night)
@@ -56,19 +63,33 @@ struct IconBackground: View {
         let y = size.height + side * 1.5 - progress.truncatingRemainder(dividingBy: travel)
         let x = size.width * r(0) + sin(t * 0.35 + Double(i)) * 18
         let angle = sin(t * (0.25 + r(4) * 0.4) + Double(i)) * 0.45
-        let letter = Self.alphabet[Int(Self.random(i, 100 + lap) * 26) % 26]
+        let letter = Int(Self.random(i, 100 + lap) * 26) % 26
+        guard let symbol = context.resolveSymbol(id: letter) else { return }
 
         var tile = context
-        tile.opacity = 0.08 + near * 0.22             // …and brighter
-        if near < 0.3 { tile.addFilter(.blur(radius: 1.5)) }
+        tile.opacity = 0.05 + near * 0.25             // …and brighter
         tile.translateBy(x: x, y: y)
         tile.rotate(by: .radians(angle))
-        let rect = CGRect(x: -side / 2, y: -side / 2, width: side, height: side)
-        tile.fill(Path(roundedRect: rect.offsetBy(dx: 0, dy: side * 0.08), cornerRadius: side * 0.18),
-                  with: .color(Theme.creamShade))
-        tile.fill(Path(roundedRect: rect, cornerRadius: side * 0.18), with: .color(Theme.cream))
-        tile.draw(Text(String(letter)).font(.system(size: side * 0.58, weight: .bold)).foregroundStyle(Theme.ink),
-                  at: .zero)
+        tile.scaleBy(x: side / TileSymbol.side, y: side / TileSymbol.side)
+        tile.draw(symbol, at: .zero)
+    }
+}
+
+/// One cream letter tile, drawn once at a fixed size and scaled for each floating tile.
+private struct TileSymbol: View {
+    static let side: CGFloat = 56
+    let letter: Character
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Self.side * 0.18, style: .continuous)
+        ZStack {
+            shape.fill(Theme.creamShade).offset(y: Self.side * 0.08)
+            shape.fill(Theme.cream)
+            Text(String(letter))
+                .font(.system(size: Self.side * 0.58, weight: .bold))
+                .foregroundStyle(Theme.ink)
+        }
+        .frame(width: Self.side, height: Self.side)
     }
 }
 

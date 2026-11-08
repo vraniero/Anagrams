@@ -8,10 +8,19 @@ enum BlockMetrics {
     static let wordSpacing: CGFloat = 14
 
     /// The biggest block that fits the longest word on one line of `width`.
-    static func size(longestWord: Int, width: CGFloat) -> CGFloat {
+    static func size(longestWord: Int, width: CGFloat, maxSize: CGFloat = maxSize) -> CGFloat {
         guard longestWord > 0, width > 0 else { return maxSize }
         let fit = (width - gap * CGFloat(longestWord - 1)) / CGFloat(longestWord)
         return min(maxSize, max(minSize, fit.rounded(.down)))
+    }
+
+    /// Smaller blocks for long sentences, so the board still fits on screen.
+    static func maxSize(letters: Int) -> CGFloat {
+        switch letters {
+        case ..<28: maxSize
+        case ..<45: 38
+        default: 32
+        }
     }
 }
 
@@ -105,22 +114,21 @@ struct WordBlocks<Content: View>: View {
 /// Measures the width it's given and sizes the blocks inside to fit the longest word.
 struct FittingBlocks<Content: View>: View {
     let longestWord: Int
+    var maxSize: CGFloat = BlockMetrics.maxSize
     @ViewBuilder var content: Content
     @State private var width: CGFloat = 0
 
     var body: some View {
         content
-            .environment(\.blockSize, BlockMetrics.size(longestWord: longestWord, width: width))
+            .environment(\.blockSize, BlockMetrics.size(longestWord: longestWord, width: width, maxSize: maxSize))
             .frame(maxWidth: .infinity)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 
-/// A phrase as wrapping lines of letter blocks (used while listening).
+/// A phrase as wrapping lines of letter blocks (the sentence being written).
 struct PhraseBlocksView: View {
     let phrase: Phrase
-    /// Words were heard and are being written down: placeholder tiles shimmer at the end.
-    var isWorking = false
 
     var body: some View {
         FittingBlocks(longestWord: phrase.words.map(\.blocks.count).max() ?? 0) {
@@ -128,35 +136,8 @@ struct PhraseBlocksView: View {
                 ForEach(phrase.words) { word in
                     WordBlocks { ForEach(word.blocks) { LetterBlockView(block: $0).transition(.landing) } }
                 }
-                if isWorking {
-                    WorkingTiles()
-                        .transition(.opacity)
-                }
             }
         }
         .animation(.spring, value: phrase)
-        .animation(.easeInOut, value: isWorking)
-    }
-}
-
-/// Three tiles with no letter yet, glowing one after another: words heard, still coming.
-struct WorkingTiles: View {
-    @Environment(\.blockSize) private var size
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        TimelineView(.animation(paused: reduceMotion)) { timeline in
-            let t = timeline.date.timeIntervalSinceReferenceDate
-            HStack(spacing: BlockMetrics.gap) {
-                ForEach(0..<3, id: \.self) { i in
-                    let wave = reduceMotion ? 0.5 : (sin(t * 4 - Double(i) * 0.9) + 1) / 2
-                    RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                        .fill(Color.accentColor.opacity(0.15 + 0.35 * wave))
-                        .frame(width: size, height: size)
-                        .offset(y: -4 * wave)
-                }
-            }
-        }
-        .accessibilityLabel("Writing down your words")
     }
 }

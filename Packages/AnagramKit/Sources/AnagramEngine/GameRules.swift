@@ -16,6 +16,9 @@ public struct ClockRound: Equatable, Sendable {
         public let isFullAnagram: Bool
         /// A full anagram that means something (its points are doubled): what it means.
         public var meaning: String? = nil
+        /// A swear word (double), or a full anagram that's a profanity (triple), with the
+        /// swear words bonus on.
+        public var isSwear = false
         public var id: String { (isFullAnagram ? "*" : "") + text }
     }
 
@@ -35,7 +38,10 @@ public struct ClockRound: Equatable, Sendable {
 
     /// Scores a checked candidate; what happened to each word, in order. `meaning`: whether
     /// the full anagram means something, if it was checked.
-    public mutating func score(_ verdict: AnagramVerdict, source: Phrase, meaning: Meaning? = nil) -> [Outcome] {
+    /// `swearBonus`: swear words score double, a profane full anagram triple (instead of the
+    /// meaning bonus).
+    public mutating func score(_ verdict: AnagramVerdict, source: Phrase, meaning: Meaning? = nil,
+                               swearBonus: Bool = false) -> [Outcome] {
         let checker = AnagramChecker()
         let sentenceWords = Set(source.words.map { checker.normalized($0.text) })
         if verdict.problems.contains(.mixedLanguages) { return [.mixedLanguages] }
@@ -50,8 +56,9 @@ public struct ClockRound: Equatable, Sendable {
             } else if found.contains(where: { !$0.isFullAnagram && checker.normalized($0.text) == key }) {
                 outcomes.append(.alreadyFound(word.text))
             } else {
-                let new = Found(text: word.text, languages: word.language.map { [$0] } ?? [], points: key.count,
-                                isFullAnagram: false)
+                let swear = swearBonus && Profanity.isSwear(word.text, language: word.language)
+                let new = Found(text: word.text, languages: word.language.map { [$0] } ?? [],
+                                points: key.count * (swear ? 2 : 1), isFullAnagram: false, isSwear: swear)
                 found.append(new)
                 outcomes.append(.scored(new))
             }
@@ -61,9 +68,10 @@ public struct ClockRound: Equatable, Sendable {
             let key = checker.normalized(text)
             if !found.contains(where: { $0.isFullAnagram && checker.normalized($0.text) == key }) {
                 let sense = meaning?.makesSense == true && Meaning.applies(to: verdict)
+                let profane = swearBonus && meaning?.isProfane == true && Meaning.applies(to: verdict)
                 let full = Found(text: text, languages: verdict.words.compactMap(\.language),
-                                 points: key.count * (sense ? 4 : 2), isFullAnagram: true,
-                                 meaning: sense ? meaning?.reading : nil)
+                                 points: key.count * 2 * (profane ? 3 : sense ? 2 : 1), isFullAnagram: true,
+                                 meaning: sense || profane ? meaning?.reading : nil, isSwear: profane)
                 found.append(full)
                 outcomes.append(.scored(full))
             }
@@ -98,16 +106,20 @@ public struct Duel: Equatable, Sendable {
         public var scoring: Scoring
         /// An anagram of two or more words that means something scores double.
         public var meaningBonus: Bool
+        /// An anagram with a swear word scores double; one that's a profanity as a whole, triple.
+        public var swearBonus: Bool
         /// The longest sentence a player may set, in letters (spaces and marks don't count).
         public var maxLetters: Int
 
         public init(solveTime: TimeInterval = 120, rounds: Int = 3, sameLanguage: Bool = false,
-                    scoring: Scoring = .lettersAndTime, meaningBonus: Bool = false, maxLetters: Int = 20) {
+                    scoring: Scoring = .lettersAndTime, meaningBonus: Bool = false, maxLetters: Int = 20,
+                    swearBonus: Bool = false) {
             self.solveTime = max(10, solveTime)
             self.rounds = min(max(rounds, Self.roundRange.lowerBound), Self.roundRange.upperBound)
             self.sameLanguage = sameLanguage
             self.scoring = scoring
             self.meaningBonus = meaningBonus
+            self.swearBonus = swearBonus
             self.maxLetters = max(1, maxLetters)
         }
 
@@ -116,13 +128,19 @@ public struct Duel: Equatable, Sendable {
             letters > 0 && letters <= maxLetters
         }
 
-        public func points(letters: Int, secondsLeft: TimeInterval, makesSense: Bool = false) -> Int {
+        /// The bonuses don't add up: the biggest one that applies counts.
+        public func points(letters: Int, secondsLeft: TimeInterval, makesSense: Bool = false,
+                           hasSwear: Bool = false, isProfane: Bool = false) -> Int {
             let points = switch scoring {
             case .lettersAndTime: letters + Int(max(0, secondsLeft) / 10)
             case .letters: letters
             case .anagrams: 1
             }
-            return meaningBonus && makesSense ? points * 2 : points
+            var times = 1
+            if meaningBonus && makesSense { times = max(times, 2) }
+            if swearBonus && hasSwear { times = max(times, 2) }
+            if swearBonus && isProfane { times = max(times, 3) }
+            return points * times
         }
     }
 
@@ -155,9 +173,10 @@ public struct Duel: Equatable, Sendable {
     /// Ends the current turn; the points the solver got.
     @discardableResult
     public mutating func finishTurn(solved: Bool, letters: Int, secondsLeft: TimeInterval,
-                                    makesSense: Bool = false) -> Int {
+                                    makesSense: Bool = false, hasSwear: Bool = false, isProfane: Bool = false) -> Int {
         guard !isOver else { return 0 }
-        let points = solved ? settings.points(letters: letters, secondsLeft: secondsLeft, makesSense: makesSense) : 0
+        let points = solved ? settings.points(letters: letters, secondsLeft: secondsLeft, makesSense: makesSense,
+                                              hasSwear: hasSwear, isProfane: isProfane) : 0
         scores[solver] += points
         turn += 1
         return points

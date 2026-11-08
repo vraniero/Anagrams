@@ -30,42 +30,57 @@ struct BoardView: View {
     @State private var suggestions: [Suggestion]?  // nil while looking
     @Namespace private var tiles  // a block moving between tray and anagram flies across
     @State private var frames: [AnyHashable: CGRect] = [:]  // areas, words and blocks, in "board" space
+    @State private var trayHeight: CGFloat = 0
+    @State private var candidateHeight: CGFloat = 0
+    @State private var trayContentHeight: CGFloat = 0
+    @State private var candidateContentHeight: CGFloat = 0
     private let space = "board"
 
     var body: some View {
         @Bindable var session = session
-        FittingBlocks(longestWord: session.board.source.words.map(\.blocks.count).max() ?? 0) {
-            VStack(spacing: 0) {
-                if let header {
-                    header
-                    Divider()
+        ZStack {
+            IconBackground()
+            FittingBlocks(longestWord: session.board.source.words.map(\.blocks.count).max() ?? 0,
+                          maxSize: BlockMetrics.maxSize(letters: session.board.source.words.reduce(0) { $0 + $1.blocks.count })) {
+                VStack(spacing: 12) {
+                    if let header {
+                        header
+                            .background(Theme.navyDeep.opacity(0.88), in: .rect(cornerRadius: 22, style: .continuous))
+                    }
+                    scrolling(tray, height: $trayHeight, contentHeight: $trayContentHeight)
+                        // the sentence takes the room its tiles need (it scrolls past that)…
+                        .frame(maxHeight: trayContentHeight > 0 ? trayContentHeight : nil)
+                        .layoutPriority(1)
+                        .boardCard(highlighted: false)
+                        .measure(Area.tray, into: $frames, space: space)
+
+                    Image(systemName: "chevron.compact.down")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Theme.glowLight.opacity(0.6))
+                        .accessibilityHidden(true)
+
+                    scrolling(candidate, height: $candidateHeight, contentHeight: $candidateContentHeight)
+                        // …the anagram the rest, never less than a good place to drop tiles
+                        .frame(minHeight: 130)
+                        .boardCard(highlighted: isOverCandidate)
+                        .measure(Area.candidate, into: $frames, space: space)
+
+                    VStack(spacing: 6) {
+                        marks
+                        accents
+                    }
+                    .padding(.top, 4)
+
+                    controls
                 }
-                tray
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .measure(Area.tray, into: $frames, space: space)
-
-                Divider()
-
-                candidate
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.accentColor.opacity(isOverCandidate ? 0.12 : 0.05))
-                    .measure(Area.candidate, into: $frames, space: space)
-
-                marks
-                    .padding(.horizontal)
-                    .padding(.top, 10)
-                accents
-                    .padding(.horizontal)
-                    .padding(.top, 6)
-
-                controls
-                    .padding()
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+                .coordinateSpace(.named(space))
+                .overlay { floatingBlock }
             }
-            .coordinateSpace(.named(space))
-            .overlay { floatingBlock }
         }
+        .environment(\.colorScheme, .dark)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .sensoryFeedback(.selection, trigger: session.board)
         .sheet(item: $session.verdict) { verdict in
             VerdictView(verdict: verdict)
@@ -82,6 +97,21 @@ struct BoardView: View {
 
     private enum Area: Hashable { case tray, candidate }
 
+    /// A card's tiles, centred; when there are too many to fit, the card scrolls (the keys
+    /// and buttons below always stay on screen).
+    private func scrolling(_ content: some View, height: Binding<CGFloat>, contentHeight: Binding<CGFloat>) -> some View {
+        ScrollView {
+            content
+                .padding(18)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight.wrappedValue = $0 }
+                .frame(maxWidth: .infinity, minHeight: height.wrappedValue)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.visible)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height.wrappedValue = $0 }
+    }
+
     /// How blocks move: a little bounce when they land.
     static let move = Animation.spring(duration: 0.5, bounce: 0.3)
 
@@ -91,7 +121,7 @@ struct BoardView: View {
 
     // MARK: areas
 
-    /// The spoken sentence; used blocks leave an empty slot.
+    /// The starting sentence; used blocks leave an empty slot.
     private var tray: some View {
         let unused = Set(session.board.tray.map(\.id))
         return FlowLayout(spacing: BlockMetrics.wordSpacing) {
@@ -105,9 +135,6 @@ struct BoardView: View {
                         }
                     }
                 }
-            }
-            if session.isProcessing {
-                WorkingTiles()  // words said just before "Make anagram", still coming
             }
         }
     }
@@ -129,7 +156,7 @@ struct BoardView: View {
                 .padding(4)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(w == words.count - 1 ? Color.accentColor.opacity(0.08) : .clear)
+                        .fill(w == words.count - 1 ? Theme.glow.opacity(0.14) : .clear)
                 )
                 .measure(word.id, into: $frames, space: space)
             }
@@ -147,7 +174,8 @@ struct BoardView: View {
                                    in: tiles)
             .transition(.landing)
             .onTapGesture { withAnimation(Self.move) { onTap() } }
-            .gesture(
+            // before the card's scrolling: a drag that starts on a tile moves the tile
+            .highPriorityGesture(
                 DragGesture(minimumDistance: 4, coordinateSpace: .named(space))
                     .onChanged { value in drag = Drag(block: block, location: value.location) }
                     .onEnded { value in
@@ -198,7 +226,7 @@ struct BoardView: View {
     // MARK: controls
 
     private var controls: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             HStack {
                 Button("Space", systemImage: "space") { session.board.newWord() }
                     .disabled(session.board.words.last?.blocks.isEmpty ?? true)
@@ -213,20 +241,26 @@ struct BoardView: View {
                 .disabled(session.board.candidate.words.isEmpty)
             }
             .buttonStyle(.bordered)
+            .tint(Theme.glowLight)
 
-            HStack {
-                let leading = leading ?? BoardAction(title: "New sentence", symbol: "mic") { session.restart() }
+            HStack(alignment: .center) {
+                let leading = leading ?? BoardAction(title: "New sentence", symbol: "arrow.counterclockwise") { session.restart() }
                 Button(leading.title, systemImage: leading.symbol, action: leading.action)
                     .buttonStyle(.bordered)
+                    .tint(Theme.glowLight)
                 Spacer()
                 Button {
                     Task {
                         if let onCheck { await onCheck() } else { await session.check() }
                     }
                 } label: {
-                    if session.isChecking { ProgressView() } else { Label("Check", systemImage: "checkmark.seal") }
+                    if session.isChecking {
+                        ProgressView().tint(.white).frame(minWidth: 90)
+                    } else {
+                        Label("Check", systemImage: "checkmark.seal.fill")
+                    }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(Raised3DButtonStyle())
                 .disabled(session.board.candidate.words.isEmpty || session.isChecking)
             }
         }
@@ -243,9 +277,9 @@ extension BoardView {
                 } label: {
                     Text(String(mark))
                         .font(.system(size: 20, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 34)
-                        .background(Color(red: 0.42, green: 0.47, blue: 0.56).opacity(0.15),
-                                    in: .rect(cornerRadius: 8, style: .continuous))
+                        .keycap(on: false)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Add \(String(mark))")
@@ -264,9 +298,8 @@ extension BoardView {
                     Text("\u{25CC}" + String(accent))
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .frame(maxWidth: .infinity, minHeight: 34)
-                        .foregroundStyle(on ? Color.white : Color.primary)
-                        .background(on ? Color.accentColor : Color.accentColor.opacity(0.12),
-                                    in: .rect(cornerRadius: 8, style: .continuous))
+                        .foregroundStyle(.white)
+                        .keycap(on: on)
                 }
                 .buttonStyle(.plain)
                 .disabled(!session.board.canAccent(accent))
@@ -296,6 +329,27 @@ struct BoardAction {
 }
 
 private extension View {
+    /// A dark glass card with a glow edge, like the typing screen's; brighter while a block
+    /// is dragged over it.
+    func boardCard(highlighted: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
+        return background(Theme.navyDeep.opacity(highlighted ? 0.95 : 0.88), in: shape)
+            .overlay {
+                shape.strokeBorder(Theme.glow.opacity(highlighted ? 0.9 : 0.35), lineWidth: highlighted ? 2 : 1)
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: Theme.glow.opacity(0.35), radius: highlighted ? 18 : 0)
+            .animation(.easeInOut(duration: 0.2), value: highlighted)
+    }
+
+    /// A small dark key for punctuation and accents; lit when it's on.
+    func keycap(on: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
+        return background(on ? AnyShapeStyle(Theme.glow) : AnyShapeStyle(Theme.navyDeep.opacity(0.85)), in: shape)
+            .overlay(shape.strokeBorder(.white.opacity(on ? 0.5 : 0.14), lineWidth: 1))
+            .shadow(color: .black.opacity(0.3), radius: 0, y: 2)
+    }
+
     /// Records this view's frame in the named coordinate space.
     func measure(_ key: AnyHashable, into frames: Binding<[AnyHashable: CGRect]>, space: String) -> some View {
         onGeometryChange(for: CGRect.self) { $0.frame(in: .named(space)) } action: { frames.wrappedValue[key] = $0 }

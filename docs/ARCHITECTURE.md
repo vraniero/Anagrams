@@ -2,55 +2,42 @@
 
 ## Flow
 
-1. **Listening**: `ServerTranscriber` streams the microphone (16 kHz mono PCM) to the backend's
-   `WS /listen`. Each utterance comes back with its text and language. `GameSession` appends it
-   to the source `Phrase`, and each `Word` keeps its `languageCode`.
-2. **Make anagram**: `finish()` stops the microphone at once and sends `{"type":"finish"}`. The
-   backend transcribes any audio still pending, ignores anything after it, and replies
-   `{"type":"done"}`. The source phrase is then frozen.
-3. **Building**: the user drags the blocks down to build the candidate phrase.
-4. **Checking**: `AnagramChecker` confirms both phrases use the same letters (case, spaces and
-   diacritics are ignored). A `WordValidator` checks that each word exists in *any* language.
-   The answer is an `AnagramVerdict`: yes or no, plus the invalid words.
+1. **Writing**: the sentence is typed, read by the camera (VisionKit Live Text), or made by
+   `SentenceMaker`, from `sentences.json` or last week's Google News headlines.
+   - `GameSession.setDraft` turns typing into the source `Phrase` as you type. Tiles that
+     didn't change keep their identity, and a letter limit can stop input.
+   - Each `Word` keeps the `languageCode` that `LanguageDetector` found for it.
+   - The sentence is proofread by Apple Intelligence, or by the dictionaries when it isn't
+     available.
+2. **Make anagram**: the source phrase is frozen and laid out on an `AnagramBoard`.
+3. **Building**: the user taps or drags tiles down.
+   - Punctuation marks and accents are free.
+   - A tile moved down loses its accent; it comes back in the tray.
+4. **Checking**: `AnagramJudge` returns an `AnagramVerdict`.
+   - Both phrases must use the same letters (case, spaces and accents ignored).
+   - Each word must exist in some language (`WordValidator`: `UITextChecker` on device).
+   - Optionally, all the words must share one language.
+   - Apple Intelligence then says whether a correct anagram of two or more words means
+     something (`Meaning`). The games use it for a bonus.
 
-## `/listen` protocol
-
-| Direction | Message |
-|---|---|
-| in  | binary frames: 16 kHz mono PCM, int16 little-endian |
-| in  | `{"type":"finish"}`: transcribe what's pending, then send `done` |
-| in  | `{"type":"reset"}`: start a new sentence |
-| out | `{"type":"ready"}`: Whisper loaded |
-| out | `{"type":"speech","start":s}` / `{"type":"silence","end":s}` |
-| out | `{"type":"utterance","id":n,"lang":"it","start":s,"end":s,"text":"…"}` |
-| out | `{"type":"done"}` |
-
-Utterances are cut by an energy-based voice-activity detector: 0.7 s pause, 12 s maximum,
-0.4 s minimum, and an adaptive noise floor. Whisper detects the language for each utterance.
+The app has no audio input. Its only sound is the synthesized countdown tick, played back
+only.
 
 ## Modules
 
 | Module          | Location                          | Responsibility                                  |
 |-----------------|-----------------------------------|-------------------------------------------------|
-| `Anagrams` app  | `App/Sources`                     | SwiftUI screens, drag & drop, `GameSession`     |
-| `AnagramModels` | `Packages/AnagramKit/Sources/...` | `LetterBlock`, `Word`, `Phrase`                 |
-| `SpeechCapture` | `Packages/AnagramKit/Sources/...` | `SpeechTranscriber` protocol, server/demo implementations, `ServerSettings` |
-| `AnagramEngine` | `Packages/AnagramKit/Sources/...` | Letter matching, multilingual word validation   |
-| backend         | `backend/`                        | Whisper speech-to-text and language detection   |
+| `Anagrams` app  | `App/Sources`                     | SwiftUI screens, drag & drop, `GameSession`, Apple Intelligence checks, sentence maker |
+| `AnagramModels` | `Packages/AnagramKit/Sources/...` | `LetterBlock`, `Word`, `Phrase`, `AnagramBoard` |
+| `AnagramEngine` | `Packages/AnagramKit/Sources/...` | Letter matching, word validation, solver, game rules (`ClockRound`, `Duel`), `LanguageDetector` |
 
-## Origin
+## Network
 
-The speech pipeline is ported from **Etymon** (`~/Developer/Etymon`): `backend/listen.py` and
-`ios/Etymon/ConversationStream.swift`. Etymon also separates speakers (ECAPA voice embeddings).
-Anagrams has one speaker, so that part was dropped.
+The only request is to `news.google.com/rss`, when a sentence is asked for from newspapers.
+Headlines are kept for an hour.
 
 ## Open questions
 
-- **Shipping without a Mac.** The backend has to run on a Mac on the same network, which is fine
-  for development but not for the App Store. `SpeechTranscriber` is a protocol, so an
-  on-device implementation (Whisper via CoreML/WhisperKit, or Apple's speech APIs plus
-  `LanguageDetector`) or a hosted server can replace `ServerTranscriber` without other changes.
-- **Dictionary for word validation.** `UITextChecker` covers only the device's languages.
-  Etymon's pipeline already downloads per-language Wiktionary dumps from kaikki.org. The same
-  data could produce a compact multilingual word list, either bundled with the app or served by
-  a backend `/check` endpoint.
+- **Dictionary coverage.** `UITextChecker` covers only the device's languages. Per-language
+  Wiktionary data (kaikki.org) could produce a compact multilingual word list bundled with the
+  app.

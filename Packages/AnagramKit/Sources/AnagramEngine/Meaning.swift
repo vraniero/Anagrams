@@ -5,10 +5,13 @@ public struct Meaning: Equatable, Sendable {
     public let makesSense: Bool
     /// One short sentence: what it means, or why it doesn't make sense.
     public let reading: String
+    /// The phrase as a whole is a profanity: a swear, an insult, something vulgar.
+    public let isProfane: Bool
 
-    public init(makesSense: Bool, reading: String) {
+    public init(makesSense: Bool, reading: String, isProfane: Bool = false) {
         self.makesSense = makesSense
         self.reading = reading
+        self.isProfane = isProfane
     }
 
     /// Only a correct anagram of two or more words is worth asking about: a single word

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Home menu → Training (listen, build, check), Game or Help.
+/// Home menu → Training (write, build, check), Game or Help.
 struct RootView: View {
     var body: some View {
         NavigationStack {
@@ -19,14 +19,14 @@ struct RootView: View {
     }
 }
 
-/// Listening, then building the anagram. Leaving it stops listening and forgets the sentence.
+/// Writing the sentence, then building the anagram. Leaving it forgets the sentence.
 struct TrainingView: View {
     @Environment(GameSession.self) private var session
 
     var body: some View {
         Group {
             switch session.stage {
-            case .listening: ListeningView()
+            case .writing: SentenceView()
             case .building: BoardView()
             }
         }

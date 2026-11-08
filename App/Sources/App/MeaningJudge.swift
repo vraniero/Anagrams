@@ -24,6 +24,16 @@ struct OnDeviceMeaningChecker: MeaningChecker, SentenceProofreader {
         return nil
     }
 
+    /// A short sentence in `language`, about the news in `headline`, of about `letters` letters.
+    func sentence(inspiredBy headline: String, language: String, letters: ClosedRange<Int>) async -> String? {
+        #if canImport(FoundationModels)
+        if #available(iOS 26, *), SystemLanguageModel.default.isAvailable {
+            return await Inspiration.write(about: headline, language: language, letters: letters)
+        }
+        #endif
+        return nil
+    }
+
     func corrected(_ sentence: String, languages: [String]) async -> String? {
         #if canImport(FoundationModels)
         if #available(iOS 26, *), SystemLanguageModel.default.isAvailable {
@@ -52,6 +62,35 @@ private struct Proofreading {
     var corrected: String
     @Guide(description: "At most 12 words in English: the mistake, or 'Correct.'")
     var problem: String
+}
+
+@available(iOS 26, *)
+@Generable
+private struct Inspired {
+    @Guide(description: "The short sentence, in the requested language, with no quotes")
+    var sentence: String
+}
+
+/// A short sentence for a word game, about a news headline.
+@available(iOS 26, *)
+private enum Inspiration {
+    static func write(about headline: String, language: String, letters: ClosedRange<Int>) async -> String? {
+        let name = englishLanguageNames([language])
+        let words = letters.upperBound <= 8 ? "one word" : letters.upperBound <= 14 ? "two or three words" : "a short sentence"
+        let session = LanguageModelSession(instructions: """
+            You write very short, correct, natural \(name) phrases for a word game, inspired by a news headline. \
+            Use common words. No names of people, no numbers, no quotes. Write only in \(name).
+            """)
+        do {
+            let response = try await session.respond(
+                to: "Headline: \(headline)\nWrite \(words) in \(name) about it, \(letters.lowerBound) to \(letters.upperBound) letters in total.",
+                generating: Inspired.self,
+                options: GenerationOptions(temperature: 0.7))
+            return response.content.sentence.trimmingCharacters(in: CharacterSet(charactersIn: " \"'“”«».!"))
+        } catch {
+            return nil
+        }
+    }
 }
 
 /// Spelling and grammar of the starting sentence. Its verdict is the corrected text: the

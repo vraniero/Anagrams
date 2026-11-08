@@ -25,8 +25,6 @@ targets:
       - package: AnagramKit
         product: AnagramModels
       - package: AnagramKit
-        product: SpeechCapture
-      - package: AnagramKit
         product: AnagramEngine
     info:
       path: App/Info.plist
@@ -34,11 +32,7 @@ targets:
         CFBundleDisplayName: Anagrams
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSMicrophoneUsageDescription: Anagrams listens to what you say to turn it into letter blocks.
-        NSLocalNetworkUsageDescription: Anagrams talks to its speech server on your network.
         NSCameraUsageDescription: Anagrams reads written sentences with the camera so you can anagram them.
-        NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ranierovirgilio.anagrams
@@ -75,4 +69,3 @@ schemes:
         - AnagramsTests
         - AnagramsUITests
         - package: AnagramKit/AnagramEngineTests
-        - package: AnagramKit/SpeechCaptureTests

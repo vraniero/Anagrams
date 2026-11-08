@@ -5,6 +5,7 @@ enum Options {
     static let sameLanguageKey = "sameLanguage"
     static let suggestionsKey = "suggestions"
     static let sentenceLanguageKey = "sentenceLanguage"
+    static let sentenceSourceKey = "sentenceSource"
 
     /// All words of an anagram must be in one language.
     static var sameLanguage: Bool { UserDefaults.standard.bool(forKey: sameLanguageKey) }

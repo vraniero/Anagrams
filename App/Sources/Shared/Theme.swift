@@ -40,3 +40,42 @@ struct CreamTile: View {
         .frame(width: size, height: size)
     }
 }
+
+/// A raised button, like a big tile: a lit face on a darker side, which sinks when pressed.
+struct Raised3DButtonStyle: ButtonStyle {
+    var color: Color = Theme.glow
+    @Environment(\.isEnabled) private var isEnabled
+
+    private let depth: CGFloat = 6
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        let tint = isEnabled ? color : Color(white: 0.45)
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        configuration.label
+            .font(.title3.weight(.heavy))
+            .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.65))
+            .shadow(color: .black.opacity(0.3), radius: 0, y: -1)
+            .padding(.horizontal, 34)
+            .padding(.vertical, 15)
+            .background {
+                shape
+                    .fill(LinearGradient(colors: [tint.mix(with: .white, by: 0.3), tint],
+                                         startPoint: .top, endPoint: .bottom))
+                    .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.6), .white.opacity(0)],
+                                                               startPoint: .top, endPoint: .center),
+                                                lineWidth: 1))
+            }
+            .offset(y: pressed ? depth - 1 : 0)
+            .background {
+                // the side: stays put while the face sinks onto it
+                shape
+                    .fill(tint.mix(with: .black, by: 0.45))
+                    .offset(y: depth)
+                    .shadow(color: .black.opacity(isEnabled ? 0.4 : 0.15), radius: 8, y: depth + 4)
+            }
+            .padding(.bottom, depth)
+            .animation(.spring(duration: 0.18), value: pressed)
+            .sensoryFeedback(.impact(weight: .medium), trigger: pressed) { _, new in new }
+    }
+}
