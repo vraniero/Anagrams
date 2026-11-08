@@ -211,11 +211,16 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testSwearWordsBonus() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", "", "-givenSentence", "this tins", "-meaning", "profane", "-swearBonus", "YES"]
+        app.launchArguments = ["-demoText", "", "-givenSentence", "this tins", "-meaning", "profane"]
         app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Against the clock"].tap()
+        // turned on right on the setup screen
+        let toggle = app.switches["Swear words bonus"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        if toggle.value as? String != "1" { toggle.switches.firstMatch.tap() }
+        XCTAssertEqual(toggle.value as? String, "1")
         app.buttons["Start"].tap()
         for letter in ["S", "H", "I", "T"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
         app.buttons["Check"].tap()

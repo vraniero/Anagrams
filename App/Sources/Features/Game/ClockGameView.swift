@@ -210,6 +210,7 @@ struct ClockSetupView: View {
     let start: (MadeSentence) -> Void
     @Environment(GameSession.self) private var session
     @AppStorage(meaningBonusKey) private var meaningBonus = true
+    @AppStorage(Options.swearBonusKey) private var swearBonus = false
 
     @AppStorage("clock.level") private var level = SentenceBank.Level.medium.rawValue
     @AppStorage(Options.sentenceSourceKey) private var source = SentenceSource.classic.rawValue
@@ -239,6 +240,16 @@ struct ClockSetupView: View {
                         Text(session.canCheckMeaning
                              ? "Words you check together that mean something score double each; a full anagram that does, double again."
                              : "Needs Apple Intelligence, which isn't available on this iPhone.")
+                            .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Divider().overlay(.white.opacity(0.15)).padding(.vertical, 6)
+                        Toggle(isOn: $swearBonus) {
+                            Text("Swear words bonus").font(.headline).foregroundStyle(.white)
+                        }
+                        .tint(Theme.glow)
+                        Text(session.canCheckMeaning
+                             ? "Each swear word scores double; a full anagram that's a profanity as a whole, triple."
+                             : "Each swear word scores double.")
                             .font(.footnote).foregroundStyle(.white.opacity(0.7))
                             .fixedSize(horizontal: false, vertical: true)
                     }
