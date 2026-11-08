@@ -143,7 +143,7 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["A point per letter of the sentence."].exists)
         shot(app, "10-multi-setup")
         tapStart(app)
-        XCTAssertTrue(app.staticTexts["Ada: type a sentence for Bo, or read one with the camera."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Ada: write a sentence for Bo."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Options"].exists)
         typeSentence(app, "Dormitory")
         XCTAssertTrue(app.staticTexts["11 letters left"].waitForExistence(timeout: 3))
@@ -232,7 +232,8 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testMultiplayerSentenceRules() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", "", "-duel.players", "", "-grammar", "wrong", "-duel.maxLetters", "10"]
+        app.launchArguments = ["-demoText", "", "-duel.players", "", "-grammar", "wrong", "-duel.maxLetters", "10",
+                               "-givenSentence", "Listen"]
         app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         app.buttons["Game"].tap()
@@ -251,6 +252,14 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Use it"].exists)
         shot(app, "16-multi-sentence-rules")
         XCTAssertFalse(app.buttons["Make anagram"].isEnabled)
+
+        // the app (or the news) can give the sentence too, within the limit, editable
+        app.buttons["Clear sentence"].tap()
+        app.buttons["Give me a sentence"].tap()
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Easy'")).firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["4 letters left"].waitForExistence(timeout: 5))   // "Listen": 6 of 10
+        XCTAssertEqual(field.value as? String, "Listen")
+        shot(app, "21-multi-given")
     }
 
     /// A sentence from the app, a suggestion laid out, a free "!" added: it's an anagram.

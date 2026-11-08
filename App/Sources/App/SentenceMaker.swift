@@ -33,17 +33,28 @@ enum SentenceMaker {
         }
     }
 
+    /// Letters for the level, within `maxLetters` (Multiplayer's longest sentence).
+    static func letters(_ level: SentenceBank.Level, maxLetters: Int?) -> ClosedRange<Int> {
+        let range = letters(level)
+        guard let maxLetters else { return range }
+        let upper = max(1, min(range.upperBound, maxLetters))
+        return min(range.lowerBound, upper)...upper
+    }
+
     static func make(_ level: SentenceBank.Level, source: SentenceSource, language: String?,
-                     avoiding last: String? = nil) async -> MadeSentence? {
+                     avoiding last: String? = nil, maxLetters: Int? = nil) async -> MadeSentence? {
         // -givenSentence "text": always that one (UI tests)
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "-givenSentence"), i + 1 < args.count {
             return MadeSentence(text: args[i + 1], language: language ?? "en")
         }
-        if source == .news, let made = await fromNews(level, language: language ?? newsLanguage, avoiding: last) {
+        let range = letters(level, maxLetters: maxLetters)
+        if source == .news, let made = await fromNews(level, range: range, language: language ?? newsLanguage,
+                                                      avoiding: last) {
             return made
         }
-        guard let classic = SentenceBank.random(level, language: language, avoiding: last) else { return nil }
+        guard let classic = SentenceBank.random(level, language: language, avoiding: last, maxLetters: maxLetters)
+        else { return nil }
         return MadeSentence(text: classic.text, language: classic.lang, isFallback: source == .news)
     }
 
@@ -53,11 +64,11 @@ enum SentenceMaker {
         return NewsHeadlines.feeds[code] != nil ? code : "en"
     }
 
-    private static func fromNews(_ level: SentenceBank.Level, language: String, avoiding last: String?) async -> MadeSentence? {
+    private static func fromNews(_ level: SentenceBank.Level, range: ClosedRange<Int>, language: String,
+                                 avoiding last: String?) async -> MadeSentence? {
         guard let headlines = try? await NewsHeadlines.shared.headlines(language: language), !headlines.isEmpty else {
             return nil
         }
-        let range = letters(level)
         let shuffled = headlines.shuffled()
         // 1. straight from a headline: a word (easy), or a part of one, or a whole short one
         for headline in shuffled {

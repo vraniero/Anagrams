@@ -26,4 +26,14 @@ struct SentenceMakerTests {
         #expect(SentenceMaker.words(of: "Trump ordina indagini", language: "it") == ["ordina", "indagini"])
         #expect(SentenceMaker.letters(.medium).contains(SentenceMaker.letterCount("Hacker russi")))
     }
+
+    @Test func sentencesStayWithinTheLetterLimit() {
+        #expect(SentenceMaker.letters(.hard, maxLetters: 15) == 12...15)
+        #expect(SentenceMaker.letters(.hard, maxLetters: 10) == 10...10)
+        #expect(SentenceMaker.letters(.medium, maxLetters: nil) == SentenceMaker.letters(.medium))
+        for _ in 0..<30 {
+            let sentence = SentenceBank.random(.hard, language: "en", maxLetters: 12)
+            #expect(sentence.map { SentenceMaker.letterCount($0.text) <= 12 } ?? false)
+        }
+    }
 }

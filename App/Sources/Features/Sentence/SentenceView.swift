@@ -235,9 +235,13 @@ struct SentenceView: View {
             defer { isMaking = false }
             guard let sentence = await SentenceMaker.make(level, source: SentenceSource(rawValue: sentenceSource) ?? .classic,
                                                           language: sentenceLanguage.isEmpty ? nil : sentenceLanguage,
-                                                          avoiding: lastGiven) else { return }
+                                                          avoiding: lastGiven, maxLetters: maxLetters) else { return }
             lastGiven = sentence.text
-            withAnimation { session.startOver(with: sentence.text, language: sentence.language) }
+            if maxLetters != nil {
+                replace(with: sentence.text)  // typed in: editable, and within the limit
+            } else {
+                withAnimation { session.startOver(with: sentence.text, language: sentence.language) }
+            }
             made = sentence
         }
     }
