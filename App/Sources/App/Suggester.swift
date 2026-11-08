@@ -93,8 +93,15 @@ struct SentenceBank {
     static var languages: [String] { Array(Set(all.map(\.lang))).sorted() }
 
     /// A random sentence of that level (in that language, if given), not the one just played.
-    static func random(_ level: Level, language: String?, avoiding last: String? = nil) -> Sentence? {
-        let pool = all.filter { $0.level == level.rawValue && (language == nil || $0.lang == language) }
+    static func random(_ level: Level, language: String?, avoiding last: String? = nil, maxLetters: Int? = nil) -> Sentence? {
+        var pool = all.filter { $0.level == level.rawValue && (language == nil || $0.lang == language) }
+        if let maxLetters {
+            let fitting = pool.filter { $0.text.filter(\.isLetter).count <= maxLetters }
+            // nothing at that level fits: the longest that does, from any level
+            pool = fitting.isEmpty
+                ? all.filter { (language == nil || $0.lang == language) && $0.text.filter(\.isLetter).count <= maxLetters }
+                : fitting
+        }
         return pool.filter { $0.text != last }.randomElement() ?? pool.randomElement()
     }
 }
