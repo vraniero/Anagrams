@@ -25,7 +25,7 @@ struct DuelGameView: View {
                 DuelSetupView(start: begin)
             case .setting:
                 ListeningView(prompt: "\(setter): type a sentence for \(solver), or read one with the camera.",
-                              voice: false)
+                              voice: false, maxLetters: duel.settings.maxLetters, requiresCorrectSentence: true)
             case .handoff:
                 handoff
             case .solving:
@@ -58,7 +58,7 @@ struct DuelGameView: View {
 
     private var setter: String { duel.players[duel.setter] }
     private var solver: String { duel.players[duel.solver] }
-    private var letters: Int { session.source.words.reduce(0) { $0 + $1.blocks.count } }
+    private var letters: Int { session.letterCount }
 
     // MARK: screens
 
@@ -276,6 +276,7 @@ private struct RulesSummary: View {
             chip(settings.sameLanguage ? "One language" : "Any languages", "character.book.closed")
             chip(settings.scoring.title, "star")
             chip("\(settings.rounds) \(settings.rounds == 1 ? "round" : "rounds")", "repeat")
+            chip("≤ \(settings.maxLetters) letters", "textformat.size")
             if settings.meaningBonus { chip("Meaning ×2", "sparkles") }
         }
     }
@@ -300,6 +301,7 @@ private struct DuelSetupView: View {
     @AppStorage("duel.sameLanguage") private var sameLanguage = false
     @AppStorage("duel.scoring") private var scoring = Duel.Settings.Scoring.lettersAndTime.rawValue
     @AppStorage("duel.meaningBonus") private var meaningBonus = true
+    @AppStorage("duel.maxLetters") private var maxLetters = 20
     @Environment(GameSession.self) private var session
     private struct Entry: Identifiable {
         let id = UUID()
@@ -363,6 +365,14 @@ private struct DuelSetupView: View {
                                     .foregroundStyle(.white)
                             }
                             Text("Each round, everyone writes one sentence for the next player.")
+                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                        }
+                        rule("Longest sentence") {
+                            Picker("Longest sentence", selection: $maxLetters) {
+                                ForEach(Duel.Settings.letterLimits, id: \.self) { Text("\($0)").tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            Text("At most \(maxLetters) letters per sentence. Spaces and punctuation don't count.")
                                 .font(.footnote).foregroundStyle(.white.opacity(0.7))
                         }
                         rule("Languages") {
@@ -438,6 +448,7 @@ private struct DuelSetupView: View {
         let saved = savedNames.components(separatedBy: "\n")
         if Duel.Settings.playerRange.contains(saved.count) { entries = saved.map { Entry(name: $0) } }
         if !Duel.Settings.times.contains(time) { time = 120 }
+        if !Duel.Settings.letterLimits.contains(maxLetters) { maxLetters = 20 }
     }
 
     private func go() {
@@ -448,6 +459,7 @@ private struct DuelSetupView: View {
         }
         start(players, Duel.Settings(solveTime: time, rounds: rounds, sameLanguage: sameLanguage,
                                      scoring: scoringChoice.wrappedValue,
-                                     meaningBonus: meaningBonus && session.canCheckMeaning))
+                                     meaningBonus: meaningBonus && session.canCheckMeaning,
+                                     maxLetters: maxLetters))
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import AnagramEngine
 
 /// Where the sentence comes from: said (live, as letter blocks), typed, read with the camera,
 /// or given by the app at a chosen difficulty. "Make anagram" stops listening.
@@ -9,6 +10,10 @@ struct ListeningView: View {
     /// Training: the sentence can be said, and the app can give one. The games: typed or
     /// read with the camera only.
     var voice = true
+    /// Multiplayer: the longest sentence allowed, in letters.
+    var maxLetters: Int? = nil
+    /// Multiplayer: the sentence must pass the spelling and grammar check to be set.
+    var requiresCorrectSentence = false
     @State private var typed = ""
     @FocusState private var isTyping: Bool
     @State private var showsCamera = false
@@ -42,6 +47,13 @@ struct ListeningView: View {
                     }
                     .padding(.top, 8)
                 }
+                if !session.source.words.isEmpty {
+                    SentenceReviewNote(review: session.review, isChecking: session.isReviewing || session.review == nil,
+                                       isRequired: requiresCorrectSentence) { suggestion in
+                        withAnimation { session.startOver(with: suggestion, language: session.source.languageCodes.first) }
+                    }
+                }
+                if let maxLetters { LetterLimit(count: session.letterCount, max: maxLetters) }
             }
             .scrollDismissesKeyboard(.interactively)
 
@@ -53,10 +65,17 @@ struct ListeningView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(session.source.words.isEmpty)
+            .disabled(session.source.words.isEmpty || isTooLong
+                      || (requiresCorrectSentence && session.review?.isCorrect != true))
         }
         .padding(.vertical)
         .onAppear { if voice { session.startListening() } }
+        .task(id: session.source.text) {
+            // proofread once the sentence stops changing
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            await session.reviewSentence()
+        }
         .sheet(isPresented: $showsCamera) {
             TextScannerView { text in
                 withAnimation { session.startOver(with: text) }
@@ -123,6 +142,10 @@ struct ListeningView: View {
         }
     }
 
+    private var isTooLong: Bool {
+        maxLetters.map { session.letterCount > $0 } ?? false
+    }
+
     private func give(_ level: SentenceBank.Level) {
         guard let sentence = SentenceBank.random(level, language: sentenceLanguage.isEmpty ? nil : sentenceLanguage,
                                                  avoiding: lastGiven) else { return }
@@ -174,5 +197,78 @@ struct ListeningView: View {
         if session.isTalking { return "Listening…" }
         if session.isProcessing { return "Got it, writing down your words…" }
         return session.isListening ? "Speak in any language" : "Not listening"
+    }
+}
+
+/// "12 of 20 letters", red with a hint when the sentence is too long.
+private struct LetterLimit: View {
+    let count: Int
+    let max: Int
+
+    var body: some View {
+        let over = count > max
+        VStack(spacing: 4) {
+            Text(count == 0 ? "Up to \(max) letters" : "\(count) of \(max) letters")
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(over ? Color.red : .secondary)
+                .contentTransition(.numericText(value: Double(count)))
+                .animation(.snappy, value: count)
+            if over {
+                Text("Too long by \(count - max). Clear it and write a shorter one.")
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.top, 10)
+        .padding(.horizontal)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The spelling and grammar check of the sentence: fine, or what to fix (with the fix to
+/// take in one tap).
+private struct SentenceReviewNote: View {
+    let review: SentenceReview?
+    let isChecking: Bool
+    /// Multiplayer: say it has to be fixed.
+    let isRequired: Bool
+    let use: (String) -> Void
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if let review, !isChecking || review.isCorrect {
+                if review.isCorrect {
+                    Label("Spelling and grammar look right", systemImage: "checkmark.seal.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.green)
+                } else {
+                    Label(isRequired ? "Fix the sentence before passing the phone" : "This sentence may have a mistake",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.orange)
+                    if let suggestion = review.suggestion {
+                        Text("Did you mean “\(suggestion)”?")
+                            .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                        Button("Use it") { use(suggestion) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    } else if !review.unknownWords.isEmpty {
+                        Text("Not in any dictionary: \(review.unknownWords.joined(separator: ", "))")
+                            .font(.subheadline)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            } else {
+                Label { Text("Checking spelling and grammar…") } icon: { ProgressView().controlSize(.small) }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.top, 10)
+        .padding(.horizontal)
+        .animation(.snappy, value: review)
     }
 }

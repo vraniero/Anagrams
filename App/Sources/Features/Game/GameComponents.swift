@@ -50,10 +50,15 @@ struct CreamButtonStyle: ButtonStyle {
     }
 }
 
-/// Seconds left, counting down by itself, and a bar that empties.
+/// Seconds left, counting down by itself, and a bar that empties. The last seconds tick
+/// out loud, higher for the final few.
 struct Countdown: View {
     let start: Date
     let end: Date
+    @State private var sounds = ListeningSounds()
+
+    static let tickingSeconds = 15
+    static let urgentSeconds = 5
 
     var body: some View {
         VStack(spacing: 6) {
@@ -66,6 +71,19 @@ struct Countdown: View {
             .font(.title2.weight(.bold))
             ProgressView(timerInterval: start...end, countsDown: true) { EmptyView() } currentValueLabel: { EmptyView() }
                 .tint(Theme.glow)
+        }
+        .task(id: end) { await tick() }
+    }
+
+    /// A tick as each of the last seconds begins (15, 14, … 1 left); stops when the
+    /// countdown goes away (time's up, solved, stopped).
+    private func tick() async {
+        for left in stride(from: Self.tickingSeconds, through: 1, by: -1) {
+            let wait = end.addingTimeInterval(-Double(left)).timeIntervalSinceNow
+            if wait < -0.25 { continue }  // already past (joined late)
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled else { return }
+            sounds.playTick(urgent: left <= Self.urgentSeconds)
         }
     }
 }

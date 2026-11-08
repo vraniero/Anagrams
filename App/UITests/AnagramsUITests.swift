@@ -104,7 +104,8 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testMultiplayer() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", "", "-duel.players", "", "-meaning", "yes", "-duel.meaningBonus", "YES"]
+        app.launchArguments = ["-demoText", "", "-duel.players", "", "-meaning", "yes", "-grammar", "ok",
+                               "-duel.meaningBonus", "YES", "-duel.maxLetters", "20"]
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Multiplayer"].tap()
@@ -119,11 +120,12 @@ final class AnagramsUITests: XCTestCase {
         app.buttons["Letters"].tap()
         XCTAssertTrue(app.staticTexts["A point per letter of the sentence."].exists)
         shot(app, "10-multi-setup")
-        app.swipeUp()
-        app.buttons["Start"].tap()
+        tapStart(app)
         XCTAssertTrue(app.staticTexts["Ada: type a sentence for Bo, or read one with the camera."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Options"].exists)
         typeSentence(app, "Dormitory")
+        XCTAssertTrue(app.staticTexts["9 of 20 letters"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Spelling and grammar look right"].waitForExistence(timeout: 5))
         tapMakeAnagram(app)
         XCTAssertTrue(app.staticTexts["Pass the phone to Bo"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["9 letters, 1 minute to make an anagram."].exists)
@@ -142,6 +144,44 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["English"].exists)
         shot(app, "13-multi-result")
         XCTAssertTrue(app.buttons["Next: Bo writes a sentence"].exists)
+    }
+
+    /// An accented letter moved down loses its accent; the accent buttons put one back.
+    @MainActor
+    func testAccents() throws {
+        let app = launch(["-demoText", "città", "-grammar", "ok"])
+        tapMakeAnagram(app)
+        app.staticTexts.matching(identifier: "À").firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["A"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["À"].exists)
+        app.buttons["Grave accent"].tap()
+        XCTAssertTrue(app.staticTexts["À"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Grave accent"].isSelected)
+        shot(app, "17-accents")
+        app.buttons["Acute accent"].tap()
+        XCTAssertTrue(app.staticTexts["Á"].waitForExistence(timeout: 3))
+        app.buttons["Acute accent"].tap()
+        XCTAssertTrue(app.staticTexts["A"].waitForExistence(timeout: 3))
+    }
+
+    /// Multiplayer sentences must fit the letter limit and pass the grammar check.
+    @MainActor
+    func testMultiplayerSentenceRules() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoText", "", "-duel.players", "", "-grammar", "wrong", "-duel.maxLetters", "10"]
+        app.launch()
+        app.buttons["Game"].tap()
+        app.buttons["Multiplayer"].tap()
+        XCTAssertTrue(app.staticTexts["At most 10 letters per sentence. Spaces and punctuation don't count."].exists)
+        tapStart(app)
+        XCTAssertTrue(app.staticTexts["Up to 10 letters"].waitForExistence(timeout: 5))
+        typeSentence(app, "The cat sleep on the sofa")
+        XCTAssertTrue(app.staticTexts["20 of 10 letters"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["Too long by 10. Clear it and write a shorter one."].exists)
+        XCTAssertTrue(app.staticTexts["Fix the sentence before passing the phone"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Use it"].exists)
+        shot(app, "16-multi-sentence-rules")
+        XCTAssertFalse(app.buttons["Make anagram"].isEnabled)
     }
 
     /// A sentence from the app, a suggestion laid out, a free "!" added: it's an anagram.
@@ -182,6 +222,13 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
         field.typeText(text + "\n")
+    }
+
+    /// Scrolls the multiplayer setup down to Start and taps it.
+    private func tapStart(_ app: XCUIApplication) {
+        let start = app.buttons["Start"]
+        for _ in 0..<4 where !start.isHittable { app.swipeUp() }
+        start.tap()
     }
 
     private func tapMakeAnagram(_ app: XCUIApplication) {

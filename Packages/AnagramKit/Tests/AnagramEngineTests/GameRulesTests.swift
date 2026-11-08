@@ -99,6 +99,14 @@ struct DuelTests {
         #expect(duel.finishTurn(solved: true, letters: 8, secondsLeft: 30, makesSense: true) == 2)
     }
 
+    @Test func sentencesMustFitTheLetterLimit() {
+        let settings = Duel.Settings(maxLetters: 10)
+        #expect(settings.allows(letters: 10))
+        #expect(!settings.allows(letters: 11))
+        #expect(!settings.allows(letters: 0))
+        #expect(Duel.Settings().maxLetters == 20)
+    }
+
     @Test func tieForFirstHasNoWinner() {
         var duel = Duel(players: ["Ada", "Bo", "Cy"], settings: .init(rounds: 1, scoring: .anagrams))
         duel.finishTurn(solved: true, letters: 5, secondsLeft: 0)   // Bo
@@ -116,5 +124,15 @@ struct MeaningTests {
         #expect(!Meaning.isReordering("il mare blu", of: "Il mare, blu"))   // same order
         #expect(!Meaning.isReordering("an elegant man", of: "elegant man"))  // a word added
         #expect(!Meaning.isReordering("the sun rises", of: "el sol sale"))   // translated
+    }
+}
+
+struct SentenceReviewTests {
+    @Test func onlyCapitalsPunctuationAndAccentsMayDiffer() {
+        #expect(SentenceReview.comparing(corrected: "Perché sei qui?", to: "perche sei qui").isCorrect)
+        #expect(SentenceReview.comparing(corrected: "das Haus ist groß", to: "Das Haus ist gross").isCorrect)
+        let wrong = SentenceReview.comparing(corrected: "I have two dogs.", to: "I has two dogs")
+        #expect(!wrong.isCorrect && wrong.suggestion == "I have two dogs.")
+        #expect(SentenceReview.comparing(corrected: "the cat sleeps", to: "the cat sleeps").suggestion == nil)
     }
 }

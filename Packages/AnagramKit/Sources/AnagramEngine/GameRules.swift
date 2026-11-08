@@ -89,6 +89,7 @@ public struct Duel: Equatable, Sendable {
         public static let times: [TimeInterval] = [60, 120, 180, 300]
         public static let playerRange = 2...4
         public static let roundRange = 1...10
+        public static let letterLimits = [10, 15, 20, 25, 30]
 
         public var solveTime: TimeInterval
         public var rounds: Int
@@ -97,14 +98,22 @@ public struct Duel: Equatable, Sendable {
         public var scoring: Scoring
         /// An anagram of two or more words that means something scores double.
         public var meaningBonus: Bool
+        /// The longest sentence a player may set, in letters (spaces and marks don't count).
+        public var maxLetters: Int
 
         public init(solveTime: TimeInterval = 120, rounds: Int = 3, sameLanguage: Bool = false,
-                    scoring: Scoring = .lettersAndTime, meaningBonus: Bool = false) {
+                    scoring: Scoring = .lettersAndTime, meaningBonus: Bool = false, maxLetters: Int = 20) {
             self.solveTime = max(10, solveTime)
             self.rounds = min(max(rounds, Self.roundRange.lowerBound), Self.roundRange.upperBound)
             self.sameLanguage = sameLanguage
             self.scoring = scoring
             self.meaningBonus = meaningBonus
+            self.maxLetters = max(1, maxLetters)
+        }
+
+        /// Whether a sentence with this many letters may be set.
+        public func allows(letters: Int) -> Bool {
+            letters > 0 && letters <= maxLetters
         }
 
         public func points(letters: Int, secondsLeft: TimeInterval, makesSense: Bool = false) -> Int {

@@ -50,10 +50,44 @@ struct PunctuationTests {
     @Test func arrangeLaysOutASuggestion() {
         var board = AnagramBoard(source: Phrase(text: "Roma è"))
         board.arrange(["amerò"])
-        #expect(board.candidate.text.lowercased() == "amèro")  // the tiles keep the sentence's letters
+        #expect(board.candidate.text.lowercased() == "amerò")  // accents as in the suggestion
         #expect(board.tray.isEmpty)
         board.arrange(["ramo", "e"])
-        #expect(board.candidate.words.map(\.text).map { $0.lowercased() } == ["ramo", "è"])
+        #expect(board.candidate.words.map(\.text).map { $0.lowercased() } == ["ramo", "e"])
+    }
+
+    @Test func lettersMovedDownLoseTheirAccentsAndGetThemBackInTheTray() throws {
+        var board = AnagramBoard(source: Phrase(text: "Città è"))
+        let a = try #require(board.tray.first { $0.character == "à" })
+        board.place(a.id)
+        #expect(board.candidate.text == "a")
+        board.remove(a.id)
+        #expect(board.tray.contains { $0.id == a.id && $0.character == "à" })
+    }
+
+    @Test func accentsGoOnTheLastLetter() throws {
+        var board = AnagramBoard(source: Phrase(text: "perché"))
+        for ch in "perche" { board.place(try #require(board.tray.first { AnagramBoard.plain($0.character) == ch }).id) }
+        board.addMark("!")
+        #expect(board.candidate.text == "perche!")
+        let acute: Character = "\u{301}", grave: Character = "\u{300}", cedilla: Character = "\u{327}"
+        #expect(board.canAccent(acute) && board.canAccent(cedilla))  // ȩ exists in Unicode
+        board.toggleAccent(acute)
+        #expect(board.candidate.text == "perché!" && board.hasAccent(acute))
+        board.toggleAccent(grave)                      // another accent replaces it
+        #expect(board.candidate.text == "perchè!")
+        board.toggleAccent(grave)                      // the same one takes it off
+        #expect(board.candidate.text == "perche!" && !board.hasAccent(grave))
+    }
+
+    @Test func accentsOnlyWhereALetterExists() {
+        #expect(AnagramBoard.adding("\u{327}", to: "c") == "ç")
+        #expect(AnagramBoard.adding("\u{327}", to: "q") == nil)
+        var board = AnagramBoard(source: Phrase(text: "qua"))
+        board.place(board.tray[0].id)
+        #expect(!board.canAccent("\u{327}") && !board.canAccent("\u{301}"))  // no q́, no q̧
+        #expect(AnagramBoard.adding("\u{303}", to: "N") == "Ñ")
+        #expect(AnagramBoard.plain("È") == "E" && AnagramBoard.plain("ø") == "ø")
     }
 }
 

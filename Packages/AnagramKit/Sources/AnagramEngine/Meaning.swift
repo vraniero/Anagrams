@@ -38,3 +38,38 @@ public protocol MeaningChecker: Sendable {
     /// nil when it couldn't tell (model unavailable, unsupported language, refused).
     func meaning(of phrase: String, languages: [String]) async -> Meaning?
 }
+
+/// Whether a starting sentence is spelled and put together correctly.
+public struct SentenceReview: Equatable, Sendable {
+    public let isCorrect: Bool
+    /// The sentence with its mistakes fixed, when there is one to offer.
+    public let suggestion: String?
+    /// Words not found in any dictionary (the check used without Apple Intelligence).
+    public let unknownWords: [String]
+
+    public init(isCorrect: Bool, suggestion: String? = nil, unknownWords: [String] = []) {
+        self.isCorrect = isCorrect
+        self.suggestion = suggestion
+        self.unknownWords = unknownWords
+    }
+
+    /// A proofread version tells whether the original was right: it is if nothing but
+    /// capitals, punctuation and accents changed (players type casually).
+    public static func comparing(corrected: String, to original: String) -> SentenceReview {
+        func key(_ text: String) -> [String] {
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                .split { !($0.isLetter || $0 == "'") }
+                .map(String.init)
+        }
+        let same = key(corrected) == key(original)
+        let trimmed = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
+        return SentenceReview(isCorrect: same, suggestion: same || trimmed.isEmpty ? nil : trimmed)
+    }
+}
+
+/// Proofreads a sentence (spelling and grammar) in its own language.
+public protocol SentenceProofreader: Sendable {
+    var isAvailable: Bool { get }
+    /// The sentence with its mistakes fixed (the same if there are none); nil if it couldn't tell.
+    func corrected(_ sentence: String, languages: [String]) async -> String?
+}
