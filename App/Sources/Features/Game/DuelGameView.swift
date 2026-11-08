@@ -1,12 +1,22 @@
 import SwiftUI
 import AnagramEngine
 
-/// Two to four players, one phone. The rules (time, rounds, languages, scoring) are chosen
-/// before the game and stay fixed. In turn, one player writes a sentence (typed, or read with
-/// the camera) and passes the phone; the next one has the chosen time to make a full anagram.
+/// The sentences the app writes in a Multiplayer game, when chosen before it starts (otherwise
+/// the players write them for each other).
+struct AppSentences: Equatable {
+    var level: SentenceBank.Level
+    var source: SentenceSource
+    var language: String?
+}
+
+/// Two to four players, one phone. The rules (time, rounds, languages, scoring, and who writes
+/// the sentences) are chosen before the game and stay fixed. In turn, one player writes a
+/// sentence (typed, read with the camera, or given by the app) and passes the phone; the next
+/// one has the chosen time to make a full anagram. Or the app writes every sentence, each
+/// one new, and the players just take turns solving.
 struct DuelGameView: View {
     private enum Phase: Equatable {
-        case setup, setting, handoff, solving
+        case setup, setting, making, handoff, solving
         case result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord], meaning: Meaning?, bonus: String?)
         case over
     }
@@ -15,6 +25,9 @@ struct DuelGameView: View {
     @State private var phase = Phase.setup
     @State private var duel = Duel(players: ["Player 1", "Player 2"])
     @State private var sentence = ""
+    @State private var sentences: AppSentences?
+    @State private var made: MadeSentence?
+    @State private var makingFailed = false
     @State private var start = Date.now
     @State private var end: Date?
 
@@ -26,6 +39,8 @@ struct DuelGameView: View {
             case .setting:
                 SentenceView(prompt: "\(setter): write a sentence for \(solver).",
                               givesSentences: true, maxLetters: duel.settings.maxLetters, requiresCorrectSentence: true)
+            case .making:
+                making
             case .handoff:
                 handoff
             case .solving:
@@ -75,9 +90,44 @@ struct DuelGameView: View {
                 Text("\(letters) letters, \(duration(duel.settings.solveTime)) to make an anagram.")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.white.opacity(0.85))
-                RulesSummary(settings: duel.settings)
+                if made?.isFallback == true {
+                    Text("Couldn't read the news, so here's one of the app's sentences.")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.orange)
+                }
+                RulesSummary(settings: duel.settings, sentences: sentences)
                 Button("I'm ready", action: startSolving)
                     .buttonStyle(CreamButtonStyle())
+            }
+            .padding(32)
+        }
+    }
+
+    /// The app is writing the next sentence.
+    private var making: some View {
+        ThemedScreen {
+            VStack(spacing: 24) {
+                if makingFailed {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 56))
+                        .foregroundStyle(.orange)
+                    Text("No sentence for that choice")
+                        .font(.title.weight(.heavy))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white)
+                    Button("Try again") { Task { await makeSentence() } }
+                        .buttonStyle(CreamButtonStyle())
+                    Button("Change the rules") { withAnimation { phase = .setup } }
+                        .foregroundStyle(Theme.glowLight)
+                } else {
+                    ProgressView().controlSize(.large).tint(.white)
+                    Text(sentences?.source == .news ? "Reading the news for \(solver)…"
+                                                          : "Making a sentence for \(solver)…")
+                        .font(.title2.weight(.bold))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white)
+                }
             }
             .padding(32)
         }
@@ -117,6 +167,12 @@ struct DuelGameView: View {
                         .foregroundStyle(.white)
                     VStack(spacing: 6) {
                         Text(sentence.lowercased()).font(.headline)
+                        if let headline = made?.headline {
+                            Text("From the news: “\(headline)”")
+                                .font(.footnote)
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
                         if !answer.isEmpty {
                             Image(systemName: "arrow.down")
                             ForEach(Array(answer.enumerated()), id: \.offset) { _, word in
@@ -144,7 +200,9 @@ struct DuelGameView: View {
                         }
                     }
                     scoreboard
-                    Button(duel.isOver ? "See who won" : "Next: \(setter) writes a sentence", action: next)
+                    Button(duel.isOver ? "See who won"
+                           : sentences == nil ? "Next: \(setter) writes a sentence" : "Next: \(solver)'s turn",
+                           action: next)
                         .buttonStyle(CreamButtonStyle())
                 }
                 .padding(24)
@@ -192,16 +250,46 @@ struct DuelGameView: View {
 
     // MARK: flow
 
-    private func begin(_ players: [String], _ settings: Duel.Settings) {
+    private func begin(_ players: [String], _ settings: Duel.Settings, _ sentences: AppSentences?) {
         duel = Duel(players: players, settings: settings)
+        self.sentences = sentences
         session.restart()
         session.sameLanguageRule = settings.sameLanguage
-        phase = .setting
+        nextSentence()
     }
 
     /// Same players, same rules.
     private func playAgain() {
-        begin(duel.players, duel.settings)
+        begin(duel.players, duel.settings, sentences)
+    }
+
+    /// The setter writes it, or the app makes it.
+    private func nextSentence() {
+        made = nil
+        if sentences == nil {
+            phase = .setting
+        } else {
+            Task { await makeSentence() }
+        }
+    }
+
+    /// A sentence from the app, never given before, within the game's letter limit.
+    private func makeSentence() async {
+        guard let choice = sentences else { return }
+        makingFailed = false
+        phase = .making
+        guard let new = await SentenceMaker.make(choice.level, source: choice.source, language: choice.language,
+                                                 maxLetters: duel.settings.maxLetters) else {
+            makingFailed = true
+            return
+        }
+        guard phase == .making else { return }
+        made = new
+        session.restart()
+        session.startOver(with: new.text, language: new.language)
+        sentence = session.source.text
+        session.makeAnagram()
+        phase = .handoff
     }
 
     private func startSolving() {
@@ -257,7 +345,7 @@ struct DuelGameView: View {
             withAnimation { phase = .over }
         } else {
             session.restart()
-            phase = .setting
+            nextSentence()
         }
     }
 }
@@ -290,9 +378,13 @@ extension Duel.Settings.Scoring {
 /// The game's rules, as chips.
 private struct RulesSummary: View {
     let settings: Duel.Settings
+    let sentences: AppSentences?
 
     var body: some View {
         FlowLayout(spacing: 8) {
+            if let made = sentences {
+                chip(made.source == .news ? "News sentences" : "App sentences", "dice")
+            }
             chip(settings.sameLanguage ? "One language" : "Any languages", "character.book.closed")
             chip(settings.scoring.title, "star")
             chip("\(settings.rounds) \(settings.rounds == 1 ? "round" : "rounds")", "repeat")
@@ -314,7 +406,7 @@ private struct RulesSummary: View {
 
 /// Players and rules, decided before the game starts (and remembered for next time).
 private struct DuelSetupView: View {
-    let start: ([String], Duel.Settings) -> Void
+    let start: ([String], Duel.Settings, AppSentences?) -> Void
 
     @AppStorage("duel.players") private var savedNames = ""
     @AppStorage("duel.time") private var time = 120.0
@@ -324,6 +416,10 @@ private struct DuelSetupView: View {
     @AppStorage("duel.meaningBonus") private var meaningBonus = true
     @AppStorage("duel.swearBonus") private var swearBonus = false
     @AppStorage("duel.maxLetters") private var maxLetters = 20
+    @AppStorage("duel.sentencesBy") private var sentencesBy = "players"
+    @AppStorage("duel.level") private var level = SentenceBank.Level.medium.rawValue
+    @AppStorage("duel.source") private var source = SentenceSource.classic.rawValue
+    @AppStorage("duel.language") private var language = ""
     @Environment(GameSession.self) private var session
     private struct Entry: Identifiable {
         let id = UUID()
@@ -372,6 +468,21 @@ private struct DuelSetupView: View {
                         }
                     }
 
+                    section("Sentences") {
+                        Picker("Sentences written by", selection: $sentencesBy) {
+                            Text("The players").tag("players")
+                            Text("The app").tag("app")
+                        }
+                        .pickerStyle(.segmented)
+                        Text(byApp ? "The app gives every sentence, a new one each time. Players just solve."
+                                   : "In turn, each player writes a sentence for the next, or asks the app for one.")
+                            .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                        if byApp {
+                            SentenceChoice(level: $level, source: $source, language: $language, onCard: false)
+                                .padding(.top, 4)
+                        }
+                    }
+
                     section("Rules") {
                         rule("Time to solve") {
                             Picker("Time to solve", selection: $time) {
@@ -386,7 +497,8 @@ private struct DuelSetupView: View {
                                 Text("\(rounds) \(rounds == 1 ? "round" : "rounds")")
                                     .foregroundStyle(.white)
                             }
-                            Text("Each round, everyone writes one sentence for the next player.")
+                            Text(byApp ? "Each round, everyone solves one sentence."
+                                       : "Each round, everyone writes one sentence for the next player.")
                                 .font(.footnote).foregroundStyle(.white.opacity(0.7))
                         }
                         rule("Longest sentence") {
@@ -440,7 +552,8 @@ private struct DuelSetupView: View {
                         }
                     }
 
-                    Text("In turn, each player writes a sentence and passes the phone to the next, who makes the anagram. No suggestions in a game.")
+                    Text(byApp ? "In turn, each player gets the phone and makes an anagram of the app's sentence. No suggestions in a game."
+                               : "In turn, each player writes a sentence and passes the phone to the next, who makes the anagram. No suggestions in a game.")
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.75))
@@ -456,6 +569,8 @@ private struct DuelSetupView: View {
         .environment(\.colorScheme, .dark)
         .onAppear(perform: load)
     }
+
+    private var byApp: Bool { sentencesBy == "app" }
 
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -493,6 +608,10 @@ private struct DuelSetupView: View {
         start(players, Duel.Settings(solveTime: time, rounds: rounds, sameLanguage: sameLanguage,
                                      scoring: scoringChoice.wrappedValue,
                                      meaningBonus: meaningBonus && session.canCheckMeaning,
-                                     maxLetters: maxLetters, swearBonus: swearBonus))
+                                     maxLetters: maxLetters, swearBonus: swearBonus),
+              byApp ? AppSentences(level: SentenceBank.Level(rawValue: level) ?? .medium,
+                                   source: SentenceSource(rawValue: source) ?? .classic,
+                                   language: language.isEmpty ? nil : language)
+                    : nil)
     }
 }

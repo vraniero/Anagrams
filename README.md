@@ -25,9 +25,13 @@ them into new words and the app checks the result. The app never records audio.
 - **Training**: as above, at your own pace.
 - **Against the clock**: pick a level and the app gives you the sentence. You get 90 seconds
   to make as many words as you can.
-- **Multiplayer** (2 to 4 players on one phone): in turn, each player writes a sentence for the
-  next player to solve. Time, rounds, longest sentence, languages and scoring are set before
-  the game starts.
+- **Multiplayer** (2 to 4 players on one phone): chosen before the game starts, either each
+  player writes a sentence for the next one to solve, or the app writes every sentence and
+  the players take turns solving. Time, rounds, longest sentence, languages and scoring are
+  set up front too.
+
+The app never gives the same sentence twice: it remembers every one it has given. When its
+own sentences for a choice run out, it turns to the news.
 
 Everything runs on the phone:
 

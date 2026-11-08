@@ -16,7 +16,6 @@ struct SentenceView: View {
     @State private var typed = ""
     @FocusState private var isTyping: Bool
     @State private var showsCamera = false
-    @State private var lastGiven: String?
     @AppStorage(Options.sentenceLanguageKey) private var sentenceLanguage = ""
     @AppStorage(Options.sentenceSourceKey) private var sentenceSource = SentenceSource.classic.rawValue
     @State private var isMaking = false
@@ -235,8 +234,7 @@ struct SentenceView: View {
             defer { isMaking = false }
             guard let sentence = await SentenceMaker.make(level, source: SentenceSource(rawValue: sentenceSource) ?? .classic,
                                                           language: sentenceLanguage.isEmpty ? nil : sentenceLanguage,
-                                                          avoiding: lastGiven, maxLetters: maxLetters) else { return }
-            lastGiven = sentence.text
+                                                          maxLetters: maxLetters) else { return }
             if maxLetters != nil {
                 replace(with: sentence.text)  // typed in: editable, and within the limit
             } else {

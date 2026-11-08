@@ -92,8 +92,11 @@ struct SentenceBank {
 
     static var languages: [String] { Array(Set(all.map(\.lang))).sorted() }
 
-    /// A random sentence of that level (in that language, if given), not the one just played.
-    static func random(_ level: Level, language: String?, avoiding last: String? = nil, maxLetters: Int? = nil) -> Sentence? {
+    /// A random sentence of that level (in that language, if given).
+    /// `fresh`: only one never given before (nil when they all were); otherwise the one
+    /// given longest ago.
+    @MainActor
+    static func random(_ level: Level, language: String?, maxLetters: Int? = nil, fresh: Bool = true) -> Sentence? {
         var pool = all.filter { $0.level == level.rawValue && (language == nil || $0.lang == language) }
         if let maxLetters {
             let fitting = pool.filter { $0.text.filter(\.isLetter).count <= maxLetters }
@@ -102,6 +105,7 @@ struct SentenceBank {
                 ? all.filter { (language == nil || $0.lang == language) && $0.text.filter(\.isLetter).count <= maxLetters }
                 : fitting
         }
-        return pool.filter { $0.text != last }.randomElement() ?? pool.randomElement()
+        if fresh { return pool.filter { !SentenceHistory.wasGiven($0.text) }.randomElement() }
+        return pool.min { SentenceHistory.recency($0.text) < SentenceHistory.recency($1.text) }
     }
 }
