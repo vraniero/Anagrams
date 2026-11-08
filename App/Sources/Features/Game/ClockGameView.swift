@@ -1,14 +1,15 @@
 import SwiftUI
 import AnagramEngine
 
-/// Against the clock: say or type a sentence; when you tap Make anagram the clock starts.
-/// Every word you build and check scores its letters (once); a full anagram scores double,
-/// and double again if its words mean something together.
+/// Against the clock: pick a level (and where the sentence comes from); the app makes the
+/// sentence and the clock starts. Every word you build and check scores its letters (once);
+/// a full anagram scores double, and double again if its words mean something together.
 struct ClockGameView: View {
-    private enum Phase { case sentence, playing, over }
+    private enum Phase { case setup, playing, over }
 
     @State private var session = GameSession()
-    @State private var phase = Phase.sentence
+    @State private var phase = Phase.setup
+    @State private var made: MadeSentence?
     @State private var round = ClockRound()
     @State private var start = Date.now
     @State private var end: Date?
@@ -17,9 +18,8 @@ struct ClockGameView: View {
     var body: some View {
         Group {
             switch phase {
-            case .sentence:
-                ListeningView(prompt: "Type a sentence, or read one with the camera. The clock starts when you tap Make anagram.",
-                              voice: false)
+            case .setup:
+                ClockSetupView(start: startRound)
             case .playing:
                 BoardView(header: AnyView(header),
                           leading: BoardAction(title: "Stop", symbol: "stop.fill") { finish() },
@@ -33,7 +33,7 @@ struct ClockGameView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { OptionsMenu() } }
         .onChange(of: session.stage) { _, stage in
-            if stage == .building && phase == .sentence { begin() }
+            if stage == .building && phase == .setup { begin() }
         }
         .task(id: end) {
             guard let end else { return }
@@ -51,6 +51,13 @@ struct ClockGameView: View {
                 Spacer(minLength: 24)
                 ScoreLabel(name: "Score", points: round.score)
             }
+            if let headline = made?.headline {
+                Label(headline, systemImage: "newspaper")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             if session.isCheckingMeaning {
                 Label { Text("Checking the meaning…") } icon: { ProgressView() }
                     .font(.subheadline)
@@ -65,6 +72,14 @@ struct ClockGameView: View {
             }
         }
         .padding()
+    }
+
+    /// The app's sentence is ready: on the board, and the clock starts.
+    private func startRound(_ sentence: MadeSentence) {
+        made = sentence
+        session.restart()
+        session.startOver(with: sentence.text, language: sentence.language)
+        session.makeAnagram()
     }
 
     private func begin() {
@@ -99,7 +114,8 @@ struct ClockGameView: View {
         session.restart()
         round = ClockRound()
         feedback = []
-        phase = .sentence
+        made = nil
+        phase = .setup
     }
 }
 
@@ -170,5 +186,113 @@ private struct ClockResultView: View {
             }
             .padding(.vertical)
         }
+    }
+}
+
+/// Before the clock starts: how hard, where the sentence comes from, which language.
+private struct ClockSetupView: View {
+    let start: (MadeSentence) -> Void
+
+    @AppStorage("clock.level") private var level = SentenceBank.Level.medium.rawValue
+    @AppStorage(Options.sentenceSourceKey) private var source = SentenceSource.classic.rawValue
+    @AppStorage(Options.sentenceLanguageKey) private var language = ""
+    @State private var isMaking = false
+    @State private var note: String?
+
+    var body: some View {
+        ThemedScreen {
+            ScrollView {
+                VStack(spacing: 22) {
+                    HStack(spacing: 4) {
+                        ForEach(Array("90SEC").indices, id: \.self) { CreamTile(letter: Array("90SEC")[$0], size: 48) }
+                    }
+                    .padding(.top, 12)
+                    Text("The app gives you a sentence. Make as many words as you can before the time is up.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white.opacity(0.8))
+                        .fixedSize(horizontal: false, vertical: true)
+                    SentenceChoice(level: $level, source: $source, language: $language)
+                    if let note {
+                        Text(note).font(.footnote).foregroundStyle(.orange).multilineTextAlignment(.center)
+                    }
+                    Button {
+                        Task { await go() }
+                    } label: {
+                        if isMaking {
+                            Label(source == SentenceSource.news.rawValue ? "Reading the news…" : "Making a sentence…",
+                                  systemImage: "hourglass")
+                        } else {
+                            Label("Start", systemImage: "timer")
+                        }
+                    }
+                    .buttonStyle(Raised3DButtonStyle())
+                    .disabled(isMaking)
+                }
+                .padding(24)
+            }
+        }
+        .environment(\.colorScheme, .dark)
+    }
+
+    private func go() async {
+        isMaking = true
+        defer { isMaking = false }
+        note = nil
+        let chosen = SentenceBank.Level(rawValue: level) ?? .medium
+        guard let sentence = await SentenceMaker.make(chosen, source: SentenceSource(rawValue: source) ?? .classic,
+                                                      language: language.isEmpty ? nil : language) else {
+            note = "No sentence for that choice. Try another language."
+            return
+        }
+        if sentence.isFallback {
+            note = "Couldn't read the news, so here's one of the app's sentences."
+            try? await Task.sleep(for: .seconds(1.5))
+        }
+        start(sentence)
+    }
+}
+
+/// Level, source and language of the sentence the app makes, on a dark card.
+struct SentenceChoice: View {
+    @Binding var level: String
+    @Binding var source: String
+    @Binding var language: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Difficulty").font(.headline).foregroundStyle(.white)
+                Picker("Difficulty", selection: $level) {
+                    ForEach(SentenceBank.Level.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                Text((SentenceBank.Level(rawValue: level) ?? .medium).detail)
+                    .font(.footnote).foregroundStyle(.white.opacity(0.7))
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Sentence from").font(.headline).foregroundStyle(.white)
+                Picker("Sentence from", selection: $source) {
+                    ForEach(SentenceSource.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                Text(source == SentenceSource.news.rawValue
+                     ? "From last week's newspaper headlines, or inspired by one."
+                     : "The app's own sentences.")
+                    .font(.footnote).foregroundStyle(.white.opacity(0.7))
+            }
+            HStack {
+                Text("Language").font(.headline).foregroundStyle(.white)
+                Spacer()
+                Picker("Language", selection: $language) {
+                    Text("Any language").tag("")
+                    ForEach(SentenceBank.languages, id: \.self) { code in
+                        Text(languageName(code) ?? code).tag(code)
+                    }
+                }
+                .tint(Theme.glowLight)
+            }
+        }
+        .padding(18)
+        .background(Theme.navyDeep.opacity(0.9), in: .rect(cornerRadius: 22, style: .continuous))
     }
 }

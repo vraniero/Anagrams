@@ -24,8 +24,8 @@ struct DuelGameView: View {
             case .setup:
                 DuelSetupView(start: begin)
             case .setting:
-                ListeningView(prompt: "\(setter): type a sentence for \(solver), or read one with the camera.",
-                              voice: false, maxLetters: duel.settings.maxLetters, requiresCorrectSentence: true)
+                SentenceView(prompt: "\(setter): type a sentence for \(solver), or read one with the camera.",
+                              givesSentences: false, maxLetters: duel.settings.maxLetters, requiresCorrectSentence: true)
             case .handoff:
                 handoff
             case .solving:

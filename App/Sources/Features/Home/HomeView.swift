@@ -13,14 +13,13 @@ struct HomeView: View {
                 AnimatedTitle()
                 Spacer(minLength: 20)
                 VStack(spacing: 14) {
-                    MenuLink(.training, title: "Training", subtitle: "Say or type a sentence, make it an anagram",
+                    MenuLink(.training, title: "Training", subtitle: "Write a sentence, make it an anagram",
                              symbol: "graduationcap.fill")
                     MenuLink(.game, title: "Game", subtitle: "Against the clock, or 2 to 4 players", symbol: "gamecontroller.fill")
                     MenuLink(.help, title: "Help", subtitle: "How it works", symbol: "questionmark.circle.fill")
                 }
                 .padding(.horizontal, 24)
-                ListeningMic()
-                    .padding(.vertical, 24)
+                Spacer(minLength: 24)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
@@ -60,23 +59,6 @@ private struct AnimatedTitle: View {
         .accessibilityLabel("Anagrams")
         .accessibilityAddTraits(.isHeader)
         .onAppear { landed = true }
-    }
-}
-
-/// The microphone from the bottom of the icon, its sound waves pulsing.
-private struct ListeningMic: View {
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "wave.3.left")
-                .symbolEffect(.variableColor.iterative.reversing, options: .repeating)
-            Image(systemName: "mic.fill")
-                .foregroundStyle(Theme.cream)
-            Image(systemName: "wave.3.right")
-                .symbolEffect(.variableColor.iterative.reversing, options: .repeating)
-        }
-        .font(.system(size: 34))
-        .foregroundStyle(Theme.glow)
-        .accessibilityHidden(true)
     }
 }
 

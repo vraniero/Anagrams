@@ -43,6 +43,22 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertGreaterThan(moved.midY, before.midY + 100, "K should have moved down to the anagram area")
     }
 
+    /// However long the sentence, Check stays on screen and can be tapped.
+    @MainActor
+    func testLongSentenceKeepsCheckReachable() throws {
+        let long = "the quick brown fox jumps over the lazy dog while seven wizards quietly judge the boxing match at night"
+        let app = launch(["-demoText", long, "-grammar", "ok"])
+        tapMakeAnagram(app)
+        for letter in ["T", "H", "E"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
+        shot(app, "18-long-sentence")
+        let check = app.buttons["Check"]
+        XCTAssertTrue(check.waitForExistence(timeout: 3))
+        XCTAssertTrue(check.isHittable)
+        XCTAssertTrue(app.windows.firstMatch.frame.contains(check.frame))
+        check.tap()
+        XCTAssertTrue(app.staticTexts["Not yet"].waitForExistence(timeout: 10))
+    }
+
     /// The sentence can be typed instead of said.
     @MainActor
     func testTypeASentence() throws {
@@ -68,6 +84,7 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testHomeMenu() throws {
         let app = XCUIApplication()
+        app.launchArguments.append("-mute")  // simulator audio can stall the app
         app.launch()
         sleep(2)
         shot(app, "0-home")
@@ -82,15 +99,19 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testAgainstTheClock() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", ""]
+        app.launchArguments = ["-demoText", "", "-givenSentence", "Listen"]
+        app.launchArguments.append("-mute")  // simulator audio can stall the app
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Against the clock"].tap()
-        XCTAssertFalse(app.staticTexts["Speak in any language"].exists)
-        XCTAssertFalse(app.buttons["Give me a sentence"].exists)
-        typeSentence(app, "Listen")
-        shot(app, "8-clock-sentence")
-        tapMakeAnagram(app)
+        // the app makes the sentence: pick a level and where it comes from
+        app.buttons["Easy"].tap()
+        app.buttons["Newspapers"].tap()
+        XCTAssertTrue(app.staticTexts["From last week's newspaper headlines, or inspired by one."].exists)
+        app.buttons["Classic"].tap()
+        shot(app, "8-clock-setup")
+        app.buttons["Start"].tap()
+        XCTAssertTrue(app.staticTexts.matching(identifier: "L").firstMatch.waitForExistence(timeout: 5))
         for letter in ["S", "I", "L", "E", "N", "T"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
         app.buttons["Check"].tap()
         XCTAssertTrue(app.staticTexts["+6 silent · English"].waitForExistence(timeout: 10))
@@ -106,6 +127,7 @@ final class AnagramsUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-demoText", "", "-duel.players", "", "-meaning", "yes", "-grammar", "ok",
                                "-duel.meaningBonus", "YES", "-duel.maxLetters", "20"]
+        app.launchArguments.append("-mute")  // simulator audio can stall the app
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Multiplayer"].tap()
@@ -124,7 +146,7 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Ada: type a sentence for Bo, or read one with the camera."].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Options"].exists)
         typeSentence(app, "Dormitory")
-        XCTAssertTrue(app.staticTexts["9 of 20 letters"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["11 letters left"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["Spelling and grammar look right"].waitForExistence(timeout: 5))
         tapMakeAnagram(app)
         XCTAssertTrue(app.staticTexts["Pass the phone to Bo"].waitForExistence(timeout: 3))
@@ -169,15 +191,20 @@ final class AnagramsUITests: XCTestCase {
     func testMultiplayerSentenceRules() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demoText", "", "-duel.players", "", "-grammar", "wrong", "-duel.maxLetters", "10"]
+        app.launchArguments.append("-mute")  // simulator audio can stall the app
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Multiplayer"].tap()
         XCTAssertTrue(app.staticTexts["At most 10 letters per sentence. Spaces and punctuation don't count."].exists)
         tapStart(app)
-        XCTAssertTrue(app.staticTexts["Up to 10 letters"].waitForExistence(timeout: 5))
-        typeSentence(app, "The cat sleep on the sofa")
-        XCTAssertTrue(app.staticTexts["20 of 10 letters"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["Too long by 10. Clear it and write a shorter one."].exists)
+        XCTAssertTrue(app.staticTexts["10 letters left"].waitForExistence(timeout: 5))
+        let field = app.textFields["Sentence"]
+        field.tap()
+        field.typeText("The cat")
+        XCTAssertTrue(app.staticTexts["4 letters left"].waitForExistence(timeout: 3))
+        field.typeText(" sleep on the sofa\n")   // stops at 10 letters: "The cat slee"
+        XCTAssertTrue(app.staticTexts["No letters left"].waitForExistence(timeout: 3))
+        XCTAssertEqual(field.value as? String, "The cat slee")
         XCTAssertTrue(app.staticTexts["Fix the sentence before passing the phone"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Use it"].exists)
         shot(app, "16-multi-sentence-rules")
@@ -208,6 +235,7 @@ final class AnagramsUITests: XCTestCase {
     private func launch(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments
+        app.launchArguments.append("-mute")  // simulator audio can stall the app
         app.launch()
         let training = app.buttons["Training"]
         XCTAssertTrue(training.waitForExistence(timeout: 5))

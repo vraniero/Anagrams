@@ -2,16 +2,16 @@ import Foundation
 import Observation
 import AnagramEngine
 import AnagramModels
-import SpeechCapture
 
-/// Drives the flow: listening → building and checking an anagram.
+/// Drives the flow: writing the sentence (typed, read by the camera, or given by the app) →
+/// building and checking an anagram. No audio: nothing is ever recorded.
 @MainActor
 @Observable
 final class GameSession {
-    enum Stage { case listening, building }
+    enum Stage { case writing, building }
 
-    var stage: Stage = .listening
-    /// The spoken sentence. Frozen after "Make anagram" (except speech still being transcribed).
+    var stage: Stage = .writing
+    /// The starting sentence. Frozen after "Make anagram".
     private(set) var source = Phrase()
     var board = AnagramBoard()
     var verdict: AnagramVerdict?
@@ -27,56 +27,44 @@ final class GameSession {
     private(set) var isReviewing = false
     private var reviewID = 0
     private(set) var isChecking = false
-    private(set) var isListening = false
-    private(set) var isConnecting = false  // the backend loads Whisper on first connection
-    private(set) var isTalking = false
-    /// Stretches of speech heard and still being turned into words.
-    private(set) var pending = 0
-    var isProcessing: Bool { pending > 0 }
+    /// What's being typed: already the sentence's last words, so its tiles show as you type.
+    private(set) var draft = ""
+    private var draftWords: [Word] = []
+    /// Multiplayer: the most letters the sentence may have; typing stops there.
+    var letterLimit: Int?
+    /// Letters still allowed (nil: no limit).
+    var lettersLeft: Int? { letterLimit.map { max(0, $0 - letterCount) } }
     /// Letters in the sentence (spaces and punctuation don't count).
     var letterCount: Int { source.words.reduce(0) { $0 + $1.blocks.filter(\.character.isLetter).count } }
-    private(set) var error: String?
     /// A game's own language rule, chosen before it started; otherwise the Options one.
     var sameLanguageRule: Bool?
     private var sameLanguage: Bool { sameLanguageRule ?? Options.sameLanguage }
 
-    private let transcriber: any SpeechTranscriber
     private let judge: AnagramJudge
     private let validator: any WordValidator
     private let suggester = Suggester()
     private let meaningChecker: any MeaningChecker
     private let proofreader: any SentenceProofreader
-    private let sounds = ListeningSounds()
-    private var listenTask: Task<Void, Never>?
-    private var generation = 0  // bumped by restart: a stale listening task changes nothing
 
-    init(transcriber: (any SpeechTranscriber)? = nil, validator: (any WordValidator)? = nil,
-         meaningChecker: (any MeaningChecker & SentenceProofreader)? = nil) {
+    init(validator: (any WordValidator)? = nil, meaningChecker: (any MeaningChecker & SentenceProofreader)? = nil) {
         let checker = meaningChecker ?? Self.defaultMeaningChecker()
         self.meaningChecker = checker
         self.proofreader = checker
-        self.transcriber = transcriber ?? Self.defaultTranscriber()
         let validator = validator ?? Self.defaultValidator()
         self.validator = validator
         self.judge = AnagramJudge(validator: validator)
+        startWithDemoSentence()
     }
 
-    private static func defaultTranscriber() -> any SpeechTranscriber {
-        // hosting unit tests: no microphone (the tests bring their own transcriber)
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            return DemoTranscriber(script: [])
-        }
-        // -demoText "some sentence": play that sentence instead of listening
+    /// UI tests: -demoText "a sentence" starts with that sentence; -demo with "Listen, Roma è".
+    private func startWithDemoSentence() {
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "-demoText"), i + 1 < args.count {
-            return DemoTranscriber(script: [Utterance(id: 1, lang: nil, start: 0, end: 1, text: args[i + 1])])
+            type(args[i + 1])
+        } else if args.contains("-demo") {
+            type("Listen,", language: "en")
+            type("Roma è", language: "it")
         }
-        #if os(iOS)
-        if !args.contains("-demo") {
-            return ServerTranscriber(holdAfterReady: ListeningSounds.duration + 0.1)
-        }
-        #endif
-        return DemoTranscriber()
     }
 
     private static func defaultMeaningChecker() -> any MeaningChecker & SentenceProofreader {
@@ -103,43 +91,68 @@ final class GameSession {
         #endif
     }
 
-    func startListening() {
-        guard !isListening else { return }
-        generation += 1
-        let current = generation
-        error = nil
-        isListening = true
-        isConnecting = true
-        listenTask = Task {
-            do {
-                for try await event in try await transcriber.start() {
-                    guard current == generation else { return }
-                    handle(event)
-                }
-            } catch {
-                if current == generation { self.error = error.localizedDescription }
-            }
-            guard current == generation else { return }
-            isListening = false
-            isConnecting = false
-            isTalking = false
-            pending = 0
-        }
-    }
-
-    /// Stops listening: what was already said is still added, nothing said afterwards.
+    /// The sentence is ready: on to the board.
     func makeAnagram() {
-        if isListening {
-            transcriber.finish()
-            sounds.playStop()
-        }
-        isTalking = false
+        keepDraft()
         board = AnagramBoard(source: source)
         stage = .building
     }
 
-    /// Typed instead of (or as well as) said: added like a heard utterance. The language
-    /// comes from the text itself (two-letter code, like Whisper's).
+    /// The text being typed changed: its words replace the previous draft's at the end of the
+    /// sentence. Letters beyond the limit aren't taken. Tiles that didn't change keep their
+    /// identity, so only the new ones land.
+    func setDraft(_ text: String) {
+        let previous = Set(draftWords.map(\.id))
+        source.words.removeAll { previous.contains($0.id) }
+        var text = text
+        if let letterLimit {
+            let room = max(0, letterLimit - letterCount)
+            // at the limit nothing more goes in: cut right after the last letter allowed
+            var seen = 0
+            if room == 0 {
+                text = ""
+            } else {
+                for i in text.indices where text[i].isLetter {
+                    seen += 1
+                    if seen == room {
+                        text = String(text[...i])
+                        break
+                    }
+                }
+            }
+        }
+        let language = LanguageDetector().dominantLanguage(of: text).map { String($0.prefix(2)) }
+        let oldBlocks = draftWords.flatMap(\.blocks)
+        var k = 0
+        var same = true
+        var words: [Word] = []
+        for part in text.split(whereSeparator: \.isWhitespace) {
+            var blocks: [LetterBlock] = []
+            for ch in part where ch.isLetter {
+                if same, k < oldBlocks.count, oldBlocks[k].character == ch {
+                    blocks.append(oldBlocks[k])
+                } else {
+                    same = false
+                    blocks.append(LetterBlock(character: ch))
+                }
+                k += 1
+            }
+            guard !blocks.isEmpty else { continue }
+            let id = words.count < draftWords.count ? draftWords[words.count].id : UUID()
+            words.append(Word(id: id, blocks: blocks, languageCode: language))
+        }
+        draftWords = words
+        source.words += words
+        draft = text
+    }
+
+    /// The typed words stay in the sentence; typing starts afresh after them.
+    private func keepDraft() {
+        draftWords = []
+        draft = ""
+    }
+
+    /// Text added to the sentence. The language comes from the text itself (two-letter code).
     func type(_ text: String, language: String? = nil) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
@@ -149,12 +162,14 @@ final class GameSession {
 
     /// A new starting sentence (read by the camera, or given by the app), replacing what's there.
     func startOver(with text: String, language: String? = nil) {
+        keepDraft()
         source = Phrase()
         type(text, language: language)
     }
 
-    /// Starts the sentence over without leaving the listening screen (a misheard word).
+    /// Starts the sentence over without leaving the sentence screen.
     func clearSentence() {
+        keepDraft()
         source = Phrase()
     }
 
@@ -219,38 +234,15 @@ final class GameSession {
     }
 
     func restart() {
-        generation += 1
-        transcriber.cancel()
-        listenTask?.cancel()
-        isListening = false
-        isConnecting = false
-        isTalking = false
-        pending = 0
         source = Phrase()
         board = AnagramBoard()
         verdict = nil
         meaning = nil
+        keepDraft()
         lastReview = nil
         reviewID += 1
         isReviewing = false
-        stage = .listening
-    }
-
-    private func handle(_ event: TranscriptEvent) {
-        switch event {
-        case .ready:
-            isConnecting = false
-            sounds.playStart()
-        case .speechStarted: isTalking = stage == .listening
-        case .speechEnded: isTalking = false
-        case .transcribing: pending += 1
-        case .discarded: pending = max(0, pending - 1)
-        case .utterance(let u):
-            isConnecting = false
-            pending = max(0, pending - 1)
-            source.append(text: u.text, languageCode: u.lang)
-            if stage == .building { board.updateSource(source) }
-        }
+        stage = .writing
     }
 }
 

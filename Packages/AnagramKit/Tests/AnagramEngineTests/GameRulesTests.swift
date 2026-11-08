@@ -136,3 +136,39 @@ struct SentenceReviewTests {
         #expect(SentenceReview.comparing(corrected: "the cat sleeps", to: "the cat sleeps").suggestion == nil)
     }
 }
+
+struct SwearBonusTests {
+    @Test func swearWordsAreFoundInTheirLanguage() {
+        #expect(Profanity.isSwear("Merda", language: "it"))
+        #expect(Profanity.isSwear("cabron", language: "es"))      // accents ignored
+        #expect(!Profanity.isSwear("merda", language: "en"))      // not in that language's list
+        #expect(Profanity.isSwear("shit", language: nil))         // unknown language: any list
+        #expect(!Profanity.isSwear("silent", language: "en"))
+    }
+
+    @Test func clockSwearWordsDoubleAndProfaneAnagramsTriple() async {
+        let judge = AnagramJudge(validator: WordListValidator(["en": ["shit", "tins", "this", "tin", "s"]]))
+        let source = Phrase(text: "this tin s", languageCode: "en")
+        var round = ClockRound()
+        _ = round.score(await judge.judge(Phrase(text: "shit"), source: source), source: source, swearBonus: true)
+        #expect(round.found.last?.points == 8 && round.found.last?.isSwear == true)
+        var off = ClockRound()
+        _ = off.score(await judge.judge(Phrase(text: "shit"), source: source), source: source)
+        #expect(off.found.last?.points == 4)
+
+        let full = await judge.judge(Phrase(text: "shit tins"), source: source)
+        #expect(full.isValid)
+        var profane = ClockRound()
+        _ = profane.score(full, source: source,
+                          meaning: Meaning(makesSense: true, reading: "Rude.", isProfane: true), swearBonus: true)
+        #expect(profane.found.last?.isFullAnagram == true && profane.found.last?.points == 8 * 2 * 3)
+    }
+
+    @Test func multiplayerTakesTheBiggestBonus() {
+        let on = Duel.Settings(scoring: .letters, meaningBonus: true, swearBonus: true)
+        #expect(on.points(letters: 6, secondsLeft: 0, hasSwear: true) == 12)
+        #expect(on.points(letters: 6, secondsLeft: 0, makesSense: true, hasSwear: true) == 12)
+        #expect(on.points(letters: 6, secondsLeft: 0, makesSense: true, hasSwear: true, isProfane: true) == 18)
+        #expect(Duel.Settings(scoring: .letters).points(letters: 6, secondsLeft: 0, hasSwear: true, isProfane: true) == 6)
+    }
+}

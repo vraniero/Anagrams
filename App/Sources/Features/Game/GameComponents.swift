@@ -55,7 +55,7 @@ struct CreamButtonStyle: ButtonStyle {
 struct Countdown: View {
     let start: Date
     let end: Date
-    @State private var sounds = ListeningSounds()
+    @State private var sounds = Sounds()
 
     static let tickingSeconds = 15
     static let urgentSeconds = 5

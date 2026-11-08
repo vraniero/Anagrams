@@ -1,2 +1,0 @@
-# Apple Silicon only. Whisper weights download on first use.
-mlx-whisper

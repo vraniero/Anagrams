@@ -7,14 +7,11 @@ let package = Package(
     platforms: [.iOS(.v18), .macOS(.v15)],
     products: [
         .library(name: "AnagramModels", targets: ["AnagramModels"]),
-        .library(name: "SpeechCapture", targets: ["SpeechCapture"]),
         .library(name: "AnagramEngine", targets: ["AnagramEngine"]),
     ],
     targets: [
         .target(name: "AnagramModels"),
-        .target(name: "SpeechCapture", dependencies: ["AnagramModels"]),
         .target(name: "AnagramEngine", dependencies: ["AnagramModels"]),
         .testTarget(name: "AnagramEngineTests", dependencies: ["AnagramEngine", "AnagramModels"]),
-        .testTarget(name: "SpeechCaptureTests", dependencies: ["SpeechCapture", "AnagramModels"]),
     ]
 )

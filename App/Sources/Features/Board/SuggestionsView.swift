@@ -32,7 +32,7 @@ struct SuggestionsView: View {
                     }
                 } else {
                     VStack(spacing: 14) {
-                        WorkingTiles()
+                        ProgressView().controlSize(.large)
                         Text("Looking for anagrams…").foregroundStyle(.secondary)
                     }
                 }
