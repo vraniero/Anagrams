@@ -20,6 +20,12 @@ public struct Meaning: Equatable, Sendable {
         verdict.isValid && verdict.words.count >= 2
     }
 
+    /// Against the clock any check counts: two or more real words, read together.
+    public static func appliesToPhrase(_ verdict: AnagramVerdict) -> Bool {
+        verdict.words.count >= 2 && verdict.words.allSatisfy { $0.language != nil }
+            && !verdict.problems.contains(.mixedLanguages)
+    }
+
     /// Whether `natural` (the phrase as a model would say it) is the same words as `phrase`
     /// in another order: then the player's order is wrong ("mare il blu" → "il mare blu").
     /// A rewording (a word added, translated) says nothing about the order.

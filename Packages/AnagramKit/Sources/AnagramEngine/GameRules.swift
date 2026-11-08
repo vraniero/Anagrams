@@ -38,14 +38,17 @@ public struct ClockRound: Equatable, Sendable {
 
     /// Scores a checked candidate; what happened to each word, in order. `meaning`: whether
     /// the full anagram means something, if it was checked.
+    /// `meaningBonus`: words checked together that mean something score double each, and a
+    /// full anagram that does, double again.
     /// `swearBonus`: swear words score double, a profane full anagram triple (instead of the
-    /// meaning bonus).
+    /// meaning bonus). Bonuses on a word don't stack: the biggest counts.
     public mutating func score(_ verdict: AnagramVerdict, source: Phrase, meaning: Meaning? = nil,
-                               swearBonus: Bool = false) -> [Outcome] {
+                               meaningBonus: Bool = true, swearBonus: Bool = false) -> [Outcome] {
         let checker = AnagramChecker()
         let sentenceWords = Set(source.words.map { checker.normalized($0.text) })
         if verdict.problems.contains(.mixedLanguages) { return [.mixedLanguages] }
         var outcomes: [Outcome] = []
+        let phraseSense = meaningBonus && meaning?.makesSense == true && Meaning.appliesToPhrase(verdict)
         for word in verdict.words {
             let key = checker.normalized(word.text)
             guard !key.isEmpty else { continue }
@@ -58,7 +61,8 @@ public struct ClockRound: Equatable, Sendable {
             } else {
                 let swear = swearBonus && Profanity.isSwear(word.text, language: word.language)
                 let new = Found(text: word.text, languages: word.language.map { [$0] } ?? [],
-                                points: key.count * (swear ? 2 : 1), isFullAnagram: false, isSwear: swear)
+                                points: key.count * (swear || phraseSense ? 2 : 1), isFullAnagram: false,
+                                meaning: phraseSense ? meaning?.reading : nil, isSwear: swear)
                 found.append(new)
                 outcomes.append(.scored(new))
             }
@@ -67,7 +71,7 @@ public struct ClockRound: Equatable, Sendable {
             let text = verdict.words.map(\.text).joined(separator: " ")
             let key = checker.normalized(text)
             if !found.contains(where: { $0.isFullAnagram && checker.normalized($0.text) == key }) {
-                let sense = meaning?.makesSense == true && Meaning.applies(to: verdict)
+                let sense = meaningBonus && meaning?.makesSense == true && Meaning.applies(to: verdict)
                 let profane = swearBonus && meaning?.isProfane == true && Meaning.applies(to: verdict)
                 let full = Found(text: text, languages: verdict.words.compactMap(\.language),
                                  points: key.count * 2 * (profane ? 3 : sense ? 2 : 1), isFullAnagram: true,

@@ -43,6 +43,21 @@ struct ClockRoundTests {
         #expect(single.found.last?.points == 12)
     }
 
+    @Test func wordsThatMeanSomethingTogetherScoreDouble() async {
+        let sense = Meaning(makesSense: true, reading: "A lens made of tin.")
+        let phrase = await judge.judge(Phrase(text: "tin lens"), source: source)   // not a full anagram
+        var on = ClockRound()
+        _ = on.score(phrase, source: source, meaning: sense)
+        #expect(on.found.map(\.points) == [6, 8])                    // tin 3×2, lens 4×2
+        #expect(on.found.allSatisfy { $0.meaning == "A lens made of tin." })
+        var off = ClockRound()
+        _ = off.score(phrase, source: source, meaning: sense, meaningBonus: false)
+        #expect(off.score == 7)
+        var single = ClockRound()                                     // one word alone: no phrase
+        _ = single.score(await judge.judge(Phrase(text: "tin"), source: source), source: source, meaning: sense)
+        #expect(single.score == 3)
+    }
+
     @Test func sentenceWordsAndNonWordsDontScore() async {
         var round = ClockRound()
         let outcomes = round.score(await judge.judge(Phrase(text: "listen tsil"), source: source), source: source)

@@ -186,6 +186,27 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["A"].waitForExistence(timeout: 3))
     }
 
+    /// Against the clock: words checked together that mean something score double each.
+    @MainActor
+    func testClockMeaningBonus() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoText", "", "-givenSentence", "dormitory", "-meaning", "yes",
+                               "-clock.meaningBonus", "YES"]
+        app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
+        app.launch()
+        app.buttons["Game"].tap()
+        app.buttons["Against the clock"].tap()
+        XCTAssertTrue(app.staticTexts["Meaning bonus"].exists)
+        app.buttons["Start"].tap()
+        for letter in ["D", "I", "R", "T", "Y"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
+        app.buttons["Space"].tap()
+        for letter in ["R", "O", "O", "M"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
+        app.buttons["Check"].tap()
+        XCTAssertTrue(app.staticTexts["+10 ✦ dirty ×2 · English"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["+8 ✦ room ×2 · English"].exists)
+        shot(app, "20-clock-meaning")
+    }
+
     /// The swear words bonus: a swear word scores double, a rude full anagram triple.
     @MainActor
     func testSwearWordsBonus() throws {

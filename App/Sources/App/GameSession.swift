@@ -214,8 +214,11 @@ final class GameSession {
 
     /// Whether a correct anagram of two or more words means something; nil if it isn't
     /// one, or it can't be told on this iPhone.
-    func meaning(of verdict: AnagramVerdict) async -> Meaning? {
-        guard Meaning.applies(to: verdict), meaningChecker.isAvailable else { return nil }
+    /// `phrase`: any two or more real words checked together (against the clock), not only
+    /// a correct anagram.
+    func meaning(of verdict: AnagramVerdict, phrase: Bool = false) async -> Meaning? {
+        let applies = phrase ? Meaning.appliesToPhrase(verdict) : Meaning.applies(to: verdict)
+        guard applies, meaningChecker.isAvailable else { return nil }
         isCheckingMeaning = true
         defer { isCheckingMeaning = false }
         return await meaningChecker.meaning(of: board.candidate.text,
