@@ -94,8 +94,10 @@ struct ClockGameView: View {
         guard phase == .playing else { return }
         let verdict = await session.evaluate()
         // checked in time: it counts even if the clock runs out while the meaning is read
-        let meaning = await session.meaning(of: verdict)
-        let outcomes = round.score(verdict, source: session.source, meaning: meaning, swearBonus: Options.swearBonus)
+        let meaningBonus = UserDefaults.standard.object(forKey: ClockSetupView.meaningBonusKey) as? Bool ?? true
+        let meaning = meaningBonus || Options.swearBonus ? await session.meaning(of: verdict, phrase: true) : nil
+        let outcomes = round.score(verdict, source: session.source, meaning: meaning,
+                                   meaningBonus: meaningBonus, swearBonus: Options.swearBonus)
         guard phase == .playing else { return }
         withAnimation(.snappy) { feedback = outcomes }
         // scored: clear the board for the next words; otherwise leave it to fix
@@ -125,7 +127,8 @@ private struct FeedbackChip: View {
     /// "silent", "🤬 shit ×2", "★ anagram", "★ anagram ✦ makes sense", "★ anagram 🤬 ×3".
     static func label(_ found: ClockRound.Found) -> String {
         guard found.isFullAnagram else {
-            return found.isSwear ? "🤬 \(found.text.lowercased()) ×2" : found.text.lowercased()
+            if found.isSwear { return "🤬 \(found.text.lowercased()) ×2" }
+            return found.meaning != nil ? "✦ \(found.text.lowercased()) ×2" : found.text.lowercased()
         }
         if found.isSwear { return "★ anagram 🤬 rude ×3" }
         return found.meaning != nil ? "★ anagram ✦ makes sense" : "★ anagram"
@@ -202,8 +205,11 @@ private struct ClockResultView: View {
 }
 
 /// Before the clock starts: how hard, where the sentence comes from, which language.
-private struct ClockSetupView: View {
+struct ClockSetupView: View {
+    static let meaningBonusKey = "clock.meaningBonus"
     let start: (MadeSentence) -> Void
+    @Environment(GameSession.self) private var session
+    @AppStorage(meaningBonusKey) private var meaningBonus = true
 
     @AppStorage("clock.level") private var level = SentenceBank.Level.medium.rawValue
     @AppStorage(Options.sentenceSourceKey) private var source = SentenceSource.classic.rawValue
@@ -224,6 +230,20 @@ private struct ClockSetupView: View {
                         .foregroundStyle(.white.opacity(0.8))
                         .fixedSize(horizontal: false, vertical: true)
                     SentenceChoice(level: $level, source: $source, language: $language)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle(isOn: $meaningBonus) {
+                            Text("Meaning bonus").font(.headline).foregroundStyle(.white)
+                        }
+                        .tint(Theme.glow)
+                        .disabled(!session.canCheckMeaning)
+                        Text(session.canCheckMeaning
+                             ? "Words you check together that mean something score double each; a full anagram that does, double again."
+                             : "Needs Apple Intelligence, which isn't available on this iPhone.")
+                            .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(18)
+                    .background(Theme.navyDeep.opacity(0.9), in: .rect(cornerRadius: 22, style: .continuous))
                     if let note {
                         Text(note).font(.footnote).foregroundStyle(.orange).multilineTextAlignment(.center)
                     }
