@@ -79,3 +79,9 @@ struct Raised3DButtonStyle: ButtonStyle {
             .sensoryFeedback(.impact(weight: .medium), trigger: pressed) { _, new in new }
     }
 }
+
+/// -still: the moving backgrounds hold still (UI tests: a busy simulator draws them on the CPU,
+/// and the tests then can't read the screen in time).
+enum Motion {
+    static let isStill = CommandLine.arguments.contains("-still")
+}

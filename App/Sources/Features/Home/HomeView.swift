@@ -37,7 +37,7 @@ private struct AnimatedTitle: View {
         ZStack {
             CirclingArrows()
                 .frame(width: 330, height: 250)
-            TimelineView(.animation(paused: reduceMotion)) { timeline in
+            TimelineView(.animation(paused: reduceMotion || Motion.isStill)) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 VStack(spacing: 4) {
                     ForEach(rows.indices, id: \.self) { row in

@@ -95,7 +95,7 @@ struct ClockGameView: View {
         let verdict = await session.evaluate()
         // checked in time: it counts even if the clock runs out while the meaning is read
         let meaning = await session.meaning(of: verdict)
-        let outcomes = round.score(verdict, source: session.source, meaning: meaning)
+        let outcomes = round.score(verdict, source: session.source, meaning: meaning, swearBonus: Options.swearBonus)
         guard phase == .playing else { return }
         withAnimation(.snappy) { feedback = outcomes }
         // scored: clear the board for the next words; otherwise leave it to fix
@@ -122,10 +122,19 @@ struct ClockGameView: View {
 private struct FeedbackChip: View {
     let outcome: ClockRound.Outcome
 
+    /// "silent", "🤬 shit ×2", "★ anagram", "★ anagram ✦ makes sense", "★ anagram 🤬 ×3".
+    static func label(_ found: ClockRound.Found) -> String {
+        guard found.isFullAnagram else {
+            return found.isSwear ? "🤬 \(found.text.lowercased()) ×2" : found.text.lowercased()
+        }
+        if found.isSwear { return "★ anagram 🤬 rude ×3" }
+        return found.meaning != nil ? "★ anagram ✦ makes sense" : "★ anagram"
+    }
+
     var body: some View {
         let (text, color): (String, Color) = switch outcome {
         case .scored(let found):
-            ("+\(found.points) \(found.isFullAnagram ? (found.meaning != nil ? "★ anagram ✦ makes sense" : "★ anagram") : found.text.lowercased()) · \(languageNames(found.languages))", .green)
+            ("+\(found.points) \(Self.label(found)) · \(languageNames(found.languages))", .green)
         case .alreadyFound(let word): ("\(word.lowercased()): already found", .orange)
         case .notAWord(let word): ("\(word.lowercased()): not a word", .red)
         case .fromSentence(let word): ("\(word.lowercased()): from the sentence", .orange)
@@ -133,6 +142,7 @@ private struct FeedbackChip: View {
         }
         Text(text)
             .font(.subheadline.weight(.semibold))
+            .lineLimit(2)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(color.opacity(0.18), in: .capsule)
@@ -162,7 +172,9 @@ private struct ClockResultView: View {
                             HStack {
                                 Text(found.isFullAnagram ? "★ \(found.text.lowercased())" : found.text.lowercased())
                                     .font(.headline)
-                                if found.meaning != nil {
+                                if found.isSwear {
+                                    Text("🤬").accessibilityLabel(found.isFullAnagram ? "rude, triple" : "swear word, double")
+                                } else if found.meaning != nil {
                                     Image(systemName: "sparkles").foregroundStyle(.orange)
                                         .accessibilityLabel("makes sense")
                                 }

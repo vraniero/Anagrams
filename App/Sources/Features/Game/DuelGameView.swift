@@ -7,7 +7,7 @@ import AnagramEngine
 struct DuelGameView: View {
     private enum Phase: Equatable {
         case setup, setting, handoff, solving
-        case result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord], meaning: Meaning?)
+        case result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord], meaning: Meaning?, bonus: String?)
         case over
     }
 
@@ -33,8 +33,8 @@ struct DuelGameView: View {
                           leading: BoardAction(title: "Give up", symbol: "flag.fill") { endTurn(solved: false) },
                           onCheck: check,
                           allowsSuggestions: false)
-            case let .result(points, solved, answer, meaning):
-                result(points: points, solved: solved, answer: answer, meaning: meaning)
+            case let .result(points, solved, answer, meaning, bonus):
+                result(points: points, solved: solved, answer: answer, meaning: meaning, bonus: bonus)
             case .over:
                 over
             }
@@ -102,7 +102,8 @@ struct DuelGameView: View {
         .padding()
     }
 
-    private func result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord], meaning: Meaning?) -> some View {
+    private func result(points: Int, solved: Bool, answer: [AnagramVerdict.CheckedWord], meaning: Meaning?,
+                        bonus: String?) -> some View {
         ThemedScreen {
             ScrollView {
                 VStack(spacing: 18) {
@@ -129,16 +130,17 @@ struct DuelGameView: View {
                         }
                     }
                     .foregroundStyle(Theme.cream)
-                    if solved, let meaning {
+                    if solved, bonus != nil || meaning != nil {
                         VStack(spacing: 4) {
-                            Label(meaning.makesSense ? "It makes sense: double points!" : "No meaning bonus",
-                                  systemImage: meaning.makesSense ? "sparkles" : "text.word.spacing")
+                            Label(bonus ?? "No bonus", systemImage: bonus == nil ? "text.word.spacing" : "sparkles")
                                 .font(.headline)
-                                .foregroundStyle(meaning.makesSense ? Color.orange : Theme.glowLight)
-                            Text(meaning.reading)
-                                .font(.subheadline)
-                                .multilineTextAlignment(.center)
-                                .foregroundStyle(.white.opacity(0.75))
+                                .foregroundStyle(bonus == nil ? Theme.glowLight : Color.orange)
+                            if let meaning {
+                                Text(meaning.reading)
+                                    .font(.subheadline)
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.white.opacity(0.75))
+                            }
                         }
                     }
                     scoreboard
@@ -217,19 +219,37 @@ struct DuelGameView: View {
             return
         }
         end = nil  // solved: the clock stops while the meaning is read
-        let meaning = duel.settings.meaningBonus ? await session.meaning(of: verdict) : nil
+        let settings = duel.settings
+        let meaning = settings.meaningBonus || settings.swearBonus ? await session.meaning(of: verdict) : nil
         guard phase == .solving else { return }
-        endTurn(solved: true, answer: verdict.words, secondsLeft: secondsLeft, meaning: meaning)
+        let hasSwear = verdict.words.contains { Profanity.isSwear($0.text, language: $0.language) }
+        endTurn(solved: true, answer: verdict.words, secondsLeft: secondsLeft, meaning: meaning, hasSwear: hasSwear)
     }
 
     private func endTurn(solved: Bool, answer: [AnagramVerdict.CheckedWord] = [], secondsLeft: TimeInterval? = nil,
-                         meaning: Meaning? = nil) {
+                         meaning: Meaning? = nil, hasSwear: Bool = false) {
         let secondsLeft = secondsLeft ?? end?.timeIntervalSinceNow ?? 0
         end = nil
         session.verdict = nil
+        let settings = duel.settings
+        let makesSense = meaning?.makesSense == true
+        let isProfane = meaning?.isProfane == true
         let points = duel.finishTurn(solved: solved, letters: letters, secondsLeft: secondsLeft,
-                                     makesSense: meaning?.makesSense == true)
-        withAnimation { phase = .result(points: points, solved: solved, answer: answer, meaning: meaning) }
+                                     makesSense: makesSense, hasSwear: hasSwear, isProfane: isProfane)
+        // the biggest bonus is the one that counts
+        let bonus: String? = if settings.swearBonus && isProfane {
+            "A proper profanity: triple points! 🤬"
+        } else if settings.swearBonus && hasSwear {
+            "A swear word: double points! 🤬"
+        } else if settings.meaningBonus && makesSense {
+            "It makes sense: double points!"
+        } else {
+            nil
+        }
+        withAnimation {
+            phase = .result(points: points, solved: solved, answer: answer,
+                            meaning: settings.meaningBonus || isProfane ? meaning : nil, bonus: solved ? bonus : nil)
+        }
     }
 
     private func next() {
@@ -278,6 +298,7 @@ private struct RulesSummary: View {
             chip("\(settings.rounds) \(settings.rounds == 1 ? "round" : "rounds")", "repeat")
             chip("≤ \(settings.maxLetters) letters", "textformat.size")
             if settings.meaningBonus { chip("Meaning ×2", "sparkles") }
+            if settings.swearBonus { chip("Swearing ×2 ×3", "exclamationmark.bubble") }
         }
     }
 
@@ -301,6 +322,7 @@ private struct DuelSetupView: View {
     @AppStorage("duel.sameLanguage") private var sameLanguage = false
     @AppStorage("duel.scoring") private var scoring = Duel.Settings.Scoring.lettersAndTime.rawValue
     @AppStorage("duel.meaningBonus") private var meaningBonus = true
+    @AppStorage("duel.swearBonus") private var swearBonus = false
     @AppStorage("duel.maxLetters") private var maxLetters = 20
     @Environment(GameSession.self) private var session
     private struct Entry: Identifiable {
@@ -405,6 +427,17 @@ private struct DuelSetupView: View {
                                  : "Needs Apple Intelligence, which isn't available on this iPhone.")
                                 .font(.footnote).foregroundStyle(.white.opacity(0.7))
                         }
+                        rule("Swear words bonus") {
+                            Toggle(isOn: $swearBonus) {
+                                Text("Rude anagrams score more")
+                                    .foregroundStyle(.white)
+                            }
+                            .tint(Theme.glow)
+                            Text(session.canCheckMeaning
+                                 ? "An anagram with a swear word scores double; one that's a profanity as a whole, triple."
+                                 : "An anagram with a swear word scores double.")
+                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                        }
                     }
 
                     Text("In turn, each player writes a sentence and passes the phone to the next, who makes the anagram. No suggestions in a game.")
@@ -460,6 +493,6 @@ private struct DuelSetupView: View {
         start(players, Duel.Settings(solveTime: time, rounds: rounds, sameLanguage: sameLanguage,
                                      scoring: scoringChoice.wrappedValue,
                                      meaningBonus: meaningBonus && session.canCheckMeaning,
-                                     maxLetters: maxLetters))
+                                     maxLetters: maxLetters, swearBonus: swearBonus))
     }
 }
