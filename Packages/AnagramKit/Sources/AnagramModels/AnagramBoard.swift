@@ -2,7 +2,14 @@ import Foundation
 
 /// The anagram being built: blocks move from the source phrase (the tray) down into the
 /// candidate's words, and back. Every block exists exactly once, in the tray or in a word.
+///
+/// Accents work like punctuation: a letter moved down loses its accent ("è" → "e") and gets
+/// it back in the tray; in the anagram, any letter may take any accent it can carry.
 public struct AnagramBoard: Hashable, Sendable {
+    /// The accents a player can put on a letter (combining marks): acute, grave, circumflex,
+    /// diaeresis, tilde, cedilla.
+    public static let accents: [Character] = ["\u{301}", "\u{300}", "\u{302}", "\u{308}", "\u{303}", "\u{327}"]
+
     public private(set) var source: Phrase
     /// The words being built. The last one is where tapped blocks go; it may be empty.
     public private(set) var words: [Word] = [Word(blocks: [])]
@@ -31,7 +38,9 @@ public struct AnagramBoard: Hashable, Sendable {
     /// Moves a block (from the tray or another word) into `word` at `index`
     /// (default: the end of the last word).
     public mutating func place(_ id: LetterBlock.ID, inWord word: Int? = nil, at index: Int? = nil) {
-        guard let block = takeBlock(id) else { return }
+        let fromTray = !words.contains { $0.blocks.contains { $0.id == id } }
+        guard var block = takeBlock(id) else { return }
+        if fromTray { block = LetterBlock(id: block.id, character: Self.plain(block.character)) }
         let w = min(word ?? words.count - 1, words.count - 1)
         let i = min(index ?? words[w].blocks.count, words[w].blocks.count)
         words[w].blocks.insert(block, at: i)
@@ -44,6 +53,54 @@ public struct AnagramBoard: Hashable, Sendable {
         let w = min(word ?? words.count - 1, words.count - 1)
         let i = min(index ?? words[w].blocks.count, words[w].blocks.count)
         words[w].blocks.insert(LetterBlock(character: mark), at: i)
+    }
+
+    /// Whether `accent` can go on the anagram's last letter (or comes off it, if it's there).
+    public func canAccent(_ accent: Character) -> Bool {
+        guard let (w, i) = accentTarget else { return false }
+        return Self.adding(accent, to: words[w].blocks[i].character) != nil
+    }
+
+    /// Whether the anagram's last letter carries `accent`.
+    public func hasAccent(_ accent: Character) -> Bool {
+        guard let (w, i) = accentTarget else { return false }
+        let c = words[w].blocks[i].character
+        return Self.adding(accent, to: c) == c && Self.plain(c) != c
+    }
+
+    /// Puts `accent` on the anagram's last letter (punctuation after it is skipped),
+    /// replacing any other accent; takes it off if it's already there.
+    public mutating func toggleAccent(_ accent: Character) {
+        guard let (w, i) = accentTarget else { return }
+        let block = words[w].blocks[i]
+        let next = hasAccent(accent) ? Self.plain(block.character) : Self.adding(accent, to: block.character)
+        guard let next else { return }
+        words[w].blocks[i] = LetterBlock(id: block.id, character: next)
+    }
+
+    /// The letter without accents ("È" → "E"); letters that aren't accented ones ("ø", "ß") stay.
+    public static func plain(_ c: Character) -> Character {
+        let scalars = String(c).decomposedStringWithCanonicalMapping.unicodeScalars
+            .filter { $0.properties.generalCategory != .nonspacingMark }
+        var view = String.UnicodeScalarView()
+        view.append(contentsOf: scalars)
+        return String(view).precomposedStringWithCanonicalMapping.first ?? c
+    }
+
+    /// The letter with `accent` instead of its own; nil if there's no such letter ("ç" but no "a" with a cedilla).
+    public static func adding(_ accent: Character, to c: Character) -> Character? {
+        let s = (String(plain(c)) + String(accent)).precomposedStringWithCanonicalMapping
+        return s.unicodeScalars.count == 1 ? Character(s) : nil
+    }
+
+    /// The last letter of the anagram (marks after it don't count).
+    private var accentTarget: (Int, Int)? {
+        for w in words.indices.reversed() {
+            for i in words[w].blocks.indices.reversed() where words[w].blocks[i].character.isLetter && !isMark(words[w].blocks[i].id) {
+                return (w, i)
+            }
+        }
+        return nil
     }
 
     /// Whether the block is a punctuation mark the player added (not from the sentence).
@@ -63,7 +120,7 @@ public struct AnagramBoard: Hashable, Sendable {
     }
 
     /// Lays out an anagram (a suggestion): its words built from the tray's blocks, letter by
-    /// letter, accents and case ignored ("amerò" takes an "o" block).
+    /// letter, accents and case ignored ("amerò" takes an "o" block, and gets the accent).
     public mutating func arrange(_ texts: [String]) {
         clear()
         func fold(_ c: Character) -> String {
@@ -72,7 +129,15 @@ public struct AnagramBoard: Hashable, Sendable {
         for text in texts {
             newWord()
             for ch in text where ch.isLetter {
-                if let block = tray.first(where: { fold($0.character) == fold(ch) }) { place(block.id) }
+                guard let block = tray.first(where: { fold($0.character) == fold(ch) }) else { continue }
+                place(block.id)
+                // the suggestion's accent, on the tile's own letter (its case kept)
+                let marks = String(ch).decomposedStringWithCanonicalMapping.unicodeScalars
+                    .filter { $0.properties.generalCategory == .nonspacingMark }
+                if let accent = marks.first, let w = words.indices.last, let i = words[w].blocks.indices.last,
+                   let accented = Self.adding(Character(accent), to: words[w].blocks[i].character) {
+                    words[w].blocks[i] = LetterBlock(id: block.id, character: accented)
+                }
             }
         }
     }

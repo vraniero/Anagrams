@@ -7,7 +7,7 @@ import FoundationModels
 /// Asks Apple Intelligence's on-device model whether an anagram means something. Private
 /// and offline; nothing when the model isn't there (older iPhone, Apple Intelligence off,
 /// model still downloading, a language it doesn't support).
-struct OnDeviceMeaningChecker: MeaningChecker {
+struct OnDeviceMeaningChecker: MeaningChecker, SentenceProofreader {
     var isAvailable: Bool {
         #if canImport(FoundationModels)
         if #available(iOS 26, *) { return SystemLanguageModel.default.isAvailable }
@@ -23,9 +23,63 @@ struct OnDeviceMeaningChecker: MeaningChecker {
         #endif
         return nil
     }
+
+    func corrected(_ sentence: String, languages: [String]) async -> String? {
+        #if canImport(FoundationModels)
+        if #available(iOS 26, *), SystemLanguageModel.default.isAvailable {
+            return await Proofreader.correct(sentence, languages: languages)
+        }
+        #endif
+        return nil
+    }
 }
 
 #if canImport(FoundationModels)
+private func englishLanguageNames(_ codes: [String]) -> String {
+    let english = Locale(identifier: "en")
+    var names: [String] = []
+    for code in codes {
+        let name = english.localizedString(forLanguageCode: code) ?? code
+        if !names.contains(name) { names.append(name) }
+    }
+    return names.joined(separator: ", ")
+}
+
+@available(iOS 26, *)
+@Generable
+private struct Proofreading {
+    @Guide(description: "The sentence with its spelling and grammar mistakes fixed, changing as little as possible, in the same language. Identical to the original if it is already correct")
+    var corrected: String
+    @Guide(description: "At most 12 words in English: the mistake, or 'Correct.'")
+    var problem: String
+}
+
+/// Spelling and grammar of the starting sentence. Its verdict is the corrected text: the
+/// sentence is right when nothing but capitals, punctuation and accents changed.
+@available(iOS 26, *)
+private enum Proofreader {
+    static let instructions = """
+        You proofread sentences that players type into a word game. Check spelling and grammar only, in the \
+        sentence's own language (or languages). Ignore capitalization and punctuation: a missing capital letter, \
+        full stop, comma or accent mark is NOT a mistake. Do not judge style, meaning or whether the sentence is \
+        interesting. Short sentences and phrases (a title, "good morning", "silent night") are fine. Never \
+        translate.
+        """
+
+    static func correct(_ sentence: String, languages: [String]) async -> String? {
+        let session = LanguageModelSession(instructions: instructions)
+        let languageLine = languages.isEmpty ? "" : "\nLanguage: \(englishLanguageNames(languages))"
+        do {
+            let response = try await session.respond(to: "Sentence: \(sentence)\(languageLine)",
+                                                     generating: Proofreading.self,
+                                                     options: GenerationOptions(sampling: .greedy))
+            return response.content.corrected
+        } catch {
+            return nil
+        }
+    }
+}
+
 @available(iOS 26, *)
 @Generable
 private struct Judgement {
@@ -60,15 +114,10 @@ private enum Referee {
         """
 
     static func judge(_ phrase: String, languages: [String]) async -> Meaning? {
-        let english = Locale(identifier: "en")
-        let names = languages.reduce(into: [String]()) { names, code in
-            let name = english.localizedString(forLanguageCode: code) ?? code
-            if !names.contains(name) { names.append(name) }
-        }
         let session = LanguageModelSession(instructions: instructions)
         do {
             let response = try await session.respond(
-                to: "Phrase: \(phrase)\nLanguages of its words: \(names.joined(separator: ", "))",
+                to: "Phrase: \(phrase)\nLanguages of its words: \(englishLanguageNames(languages))",
                 generating: Judgement.self,
                 options: GenerationOptions(sampling: .greedy))
             let judgement = response.content

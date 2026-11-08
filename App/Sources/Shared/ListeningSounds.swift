@@ -1,7 +1,7 @@
 import AVFoundation
 
-/// Two short chimes: rising when the app starts listening, falling when it stops.
-/// Synthesized (adapted from Etymon's Chimes): soft tones with a quick decay.
+/// Two short chimes: rising when the app starts listening, falling when it stops; and the
+/// countdown's ticks. Synthesized (adapted from Etymon's Chimes): soft tones with a quick decay.
 @MainActor
 final class ListeningSounds {
     private let engine = AVAudioEngine()
@@ -26,8 +26,13 @@ final class ListeningSounds {
         return true
     }
 
+    private lazy var tickBuffer = tick(880)          // A5
+    private lazy var urgentTickBuffer = tick(1318.5) // E6: the last seconds
+
     func playStart() { play(startBuffer) }
     func playStop() { play(stopBuffer) }
+    /// One second less; `urgent` for the very last ones (higher).
+    func playTick(urgent: Bool) { play(urgent ? urgentTickBuffer : tickBuffer) }
 
     private func play(_ buffer: AVAudioPCMBuffer?) {
         guard let buffer else { return }
@@ -44,6 +49,22 @@ final class ListeningSounds {
         } catch {
             // no sound is no harm
         }
+    }
+
+    /// A short wooden "tock": a tone that dies away in a tenth of a second.
+    private func tick(_ frequency: Double) -> AVAudioPCMBuffer? {
+        let seconds = 0.1
+        let count = AVAudioFrameCount(seconds * format.sampleRate)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count),
+              let samples = buffer.floatChannelData?[0] else { return nil }
+        buffer.frameLength = count
+        for i in 0..<Int(count) {
+            let t = Double(i) / format.sampleRate
+            let attack = min(t / 0.002, 1)
+            let v = attack * exp(-45 * t) * (sin(2 * .pi * frequency * t) + 0.3 * sin(2 * .pi * frequency * 2.01 * t))
+            samples[i] = Float(0.5 * v * min(1, (seconds - t) / 0.01))
+        }
+        return buffer
     }
 
     /// Notes one after another, each a soft tone with a little octave shimmer.

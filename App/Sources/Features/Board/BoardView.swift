@@ -56,6 +56,9 @@ struct BoardView: View {
                 marks
                     .padding(.horizontal)
                     .padding(.top, 10)
+                accents
+                    .padding(.horizontal)
+                    .padding(.top, 6)
 
                 controls
                     .padding()
@@ -249,6 +252,35 @@ extension BoardView {
             }
         }
     }
+
+    /// Accents, free like punctuation: on the anagram's last letter, tap again to take off.
+    private var accents: some View {
+        HStack(spacing: 6) {
+            ForEach(AnagramBoard.accents, id: \.self) { accent in
+                let on = session.board.hasAccent(accent)
+                Button {
+                    withAnimation(.snappy) { session.board.toggleAccent(accent) }
+                } label: {
+                    Text("\u{25CC}" + String(accent))
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .foregroundStyle(on ? Color.white : Color.primary)
+                        .background(on ? Color.accentColor : Color.accentColor.opacity(0.12),
+                                    in: .rect(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!session.board.canAccent(accent))
+                .opacity(session.board.canAccent(accent) ? 1 : 0.35)
+                .accessibilityLabel(Self.accentNames[accent] ?? "Accent")
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+    }
+
+    static let accentNames: [Character: String] = [
+        "\u{301}": "Acute accent", "\u{300}": "Grave accent", "\u{302}": "Circumflex",
+        "\u{308}": "Diaeresis", "\u{303}": "Tilde", "\u{327}": "Cedilla",
+    ]
 
     private func suggest() {
         suggestions = nil

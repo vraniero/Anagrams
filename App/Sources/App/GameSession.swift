@@ -19,6 +19,13 @@ final class GameSession {
     private(set) var meaning: Meaning?
     private(set) var isCheckingMeaning = false
     var canCheckMeaning: Bool { meaningChecker.isAvailable }
+    /// Whether the starting sentence is spelled and put together correctly.
+    /// For the sentence as it is now (nil while it's being checked, or never was).
+    var review: SentenceReview? { reviewedText == source.text ? lastReview : nil }
+    private var lastReview: SentenceReview?
+    private var reviewedText: String?
+    private(set) var isReviewing = false
+    private var reviewID = 0
     private(set) var isChecking = false
     private(set) var isListening = false
     private(set) var isConnecting = false  // the backend loads Whisper on first connection
@@ -26,6 +33,8 @@ final class GameSession {
     /// Stretches of speech heard and still being turned into words.
     private(set) var pending = 0
     var isProcessing: Bool { pending > 0 }
+    /// Letters in the sentence (spaces and punctuation don't count).
+    var letterCount: Int { source.words.reduce(0) { $0 + $1.blocks.filter(\.character.isLetter).count } }
     private(set) var error: String?
     /// A game's own language rule, chosen before it started; otherwise the Options one.
     var sameLanguageRule: Bool?
@@ -36,13 +45,16 @@ final class GameSession {
     private let validator: any WordValidator
     private let suggester = Suggester()
     private let meaningChecker: any MeaningChecker
+    private let proofreader: any SentenceProofreader
     private let sounds = ListeningSounds()
     private var listenTask: Task<Void, Never>?
     private var generation = 0  // bumped by restart: a stale listening task changes nothing
 
     init(transcriber: (any SpeechTranscriber)? = nil, validator: (any WordValidator)? = nil,
-         meaningChecker: (any MeaningChecker)? = nil) {
-        self.meaningChecker = meaningChecker ?? Self.defaultMeaningChecker()
+         meaningChecker: (any MeaningChecker & SentenceProofreader)? = nil) {
+        let checker = meaningChecker ?? Self.defaultMeaningChecker()
+        self.meaningChecker = checker
+        self.proofreader = checker
         self.transcriber = transcriber ?? Self.defaultTranscriber()
         let validator = validator ?? Self.defaultValidator()
         self.validator = validator
@@ -67,14 +79,18 @@ final class GameSession {
         return DemoTranscriber()
     }
 
-    private static func defaultMeaningChecker() -> any MeaningChecker {
-        // -meaning "yes" or "no": a fixed answer (UI tests; the real model's wording varies)
+    private static func defaultMeaningChecker() -> any MeaningChecker & SentenceProofreader {
+        // -meaning yes|no, -grammar ok|wrong: fixed answers (UI tests; the real model's wording varies)
         let args = CommandLine.arguments
-        if let i = args.firstIndex(of: "-meaning"), i + 1 < args.count {
-            return FixedMeaningChecker(makesSense: args[i + 1] == "yes")
+        func value(_ name: String) -> String? {
+            args.firstIndex(of: name).flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil }
+        }
+        let meaning = value("-meaning"), grammar = value("-grammar")
+        if meaning != nil || grammar != nil {
+            return FixedMeaningChecker(makesSense: meaning.map { $0 == "yes" }, grammarOK: grammar.map { $0 == "ok" })
         }
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            return FixedMeaningChecker(makesSense: nil)
+            return FixedMeaningChecker(makesSense: nil, grammarOK: nil)
         }
         return OnDeviceMeaningChecker()
     }
@@ -150,6 +166,36 @@ final class GameSession {
         meaning = await meaning(of: verdict)
     }
 
+    /// Proofreads the starting sentence: Apple Intelligence for spelling and grammar, or
+    /// the dictionaries for spelling alone when it isn't there. Call again when it changes.
+    func reviewSentence() async {
+        reviewID += 1
+        let id = reviewID
+        let text = source.text
+        let words = source.words.map(\.lookupText).filter { !$0.isEmpty }
+        guard !words.isEmpty else {
+            lastReview = nil
+            isReviewing = false
+            return
+        }
+        isReviewing = true
+        var result: SentenceReview?
+        if proofreader.isAvailable, let corrected = await proofreader.corrected(text, languages: source.languageCodes) {
+            result = .comparing(corrected: corrected, to: text)
+        }
+        if result == nil {
+            var unknown: [String] = []
+            for word in words where await validator.language(of: word, preferring: source.languageCodes) == nil {
+                unknown.append(word)
+            }
+            result = SentenceReview(isCorrect: unknown.isEmpty, unknownWords: unknown)
+        }
+        guard id == reviewID else { return }  // the sentence changed meanwhile
+        lastReview = result
+        reviewedText = text
+        isReviewing = false
+    }
+
     /// Whether a correct anagram of two or more words means something; nil if it isn't
     /// one, or it can't be told on this iPhone.
     func meaning(of verdict: AnagramVerdict) async -> Meaning? {
@@ -184,6 +230,9 @@ final class GameSession {
         board = AnagramBoard()
         verdict = nil
         meaning = nil
+        lastReview = nil
+        reviewID += 1
+        isReviewing = false
         stage = .listening
     }
 
@@ -205,10 +254,17 @@ final class GameSession {
     }
 }
 
-/// Always the same answer (nil: can't check).
-struct FixedMeaningChecker: MeaningChecker {
+/// Always the same answers (nil: can't check).
+struct FixedMeaningChecker: MeaningChecker, SentenceProofreader {
     let makesSense: Bool?
-    var isAvailable: Bool { makesSense != nil }
+    let grammarOK: Bool?
+    var isAvailable: Bool { makesSense != nil || grammarOK != nil }
+
+    func corrected(_ sentence: String, languages: [String]) async -> String? {
+        guard let grammarOK else { return nil }
+        try? await Task.sleep(for: .milliseconds(200))
+        return grammarOK ? sentence : "Corrected: " + sentence
+    }
 
     func meaning(of phrase: String, languages: [String]) async -> Meaning? {
         guard let makesSense else { return nil }
