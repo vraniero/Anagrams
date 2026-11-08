@@ -36,4 +36,19 @@ struct SentenceMakerTests {
             #expect(sentence.map { SentenceMaker.letterCount($0.text) <= 12 } ?? false)
         }
     }
+
+    @Test func givenSentencesNeverRepeat() {
+        SentenceHistory.forget()
+        defer { SentenceHistory.forget() }
+        var given: [String] = []
+        while let sentence = SentenceBank.random(.hard, language: "en", fresh: true) {
+            given.append(SentenceHistory.fold(sentence.text))
+            SentenceHistory.remember(sentence.text)
+        }
+        #expect(!given.isEmpty)
+        #expect(Set(given).count == given.count)
+        // all given: the one given longest ago comes back
+        #expect(SentenceBank.random(.hard, language: "en", fresh: false).map { SentenceHistory.fold($0.text) } == given.first)
+        #expect(SentenceHistory.wasGiven(given[0].uppercased() + "!"))
+    }
 }

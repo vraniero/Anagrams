@@ -300,6 +300,8 @@ struct SentenceChoice: View {
     @Binding var level: String
     @Binding var source: String
     @Binding var language: String
+    /// false: inside a card already.
+    var onCard = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -335,7 +337,7 @@ struct SentenceChoice: View {
                 .tint(Theme.glowLight)
             }
         }
-        .padding(18)
-        .background(Theme.navyDeep.opacity(0.9), in: .rect(cornerRadius: 22, style: .continuous))
+        .padding(onCard ? 18 : 0)
+        .background(onCard ? Theme.navyDeep.opacity(0.9) : .clear, in: .rect(cornerRadius: 22, style: .continuous))
     }
 }

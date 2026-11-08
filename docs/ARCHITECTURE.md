@@ -4,6 +4,7 @@
 
 1. **Writing**: the sentence is typed, read by the camera (VisionKit Live Text), or made by
    `SentenceMaker`, from `sentences.json` or last week's Google News headlines.
+   `SentenceHistory` (UserDefaults) remembers every sentence given, so none is given twice.
    - `GameSession.setDraft` turns typing into the source `Phrase` as you type. Tiles that
      didn't change keep their identity, and a letter limit can stop input.
    - Each `Word` keeps the `languageCode` that `LanguageDetector` found for it.

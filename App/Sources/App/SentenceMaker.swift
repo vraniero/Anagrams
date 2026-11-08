@@ -41,21 +41,40 @@ enum SentenceMaker {
         return min(range.lowerBound, upper)...upper
     }
 
+    /// A sentence never given before (see `SentenceHistory`). When the app's own sentences
+    /// for that choice have all been given, it turns to the news; only if that fails too
+    /// does it repeat the one given longest ago.
     static func make(_ level: SentenceBank.Level, source: SentenceSource, language: String?,
-                     avoiding last: String? = nil, maxLetters: Int? = nil) async -> MadeSentence? {
+                     maxLetters: Int? = nil) async -> MadeSentence? {
         // -givenSentence "text": always that one (UI tests)
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "-givenSentence"), i + 1 < args.count {
             return MadeSentence(text: args[i + 1], language: language ?? "en")
         }
+        guard let made = await pick(level, source: source, language: language, maxLetters: maxLetters) else {
+            return nil
+        }
+        SentenceHistory.remember(made.text)
+        return made
+    }
+
+    private static func pick(_ level: SentenceBank.Level, source: SentenceSource, language: String?,
+                             maxLetters: Int?) async -> MadeSentence? {
         let range = letters(level, maxLetters: maxLetters)
-        if source == .news, let made = await fromNews(level, range: range, language: language ?? newsLanguage,
-                                                      avoiding: last) {
+        if source == .news, let made = await fromNews(level, range: range, language: language ?? newsLanguage) {
             return made
         }
-        guard let classic = SentenceBank.random(level, language: language, avoiding: last, maxLetters: maxLetters)
+        if let classic = SentenceBank.random(level, language: language, maxLetters: maxLetters, fresh: true) {
+            return MadeSentence(text: classic.text, language: classic.lang, isFallback: source == .news)
+        }
+        // all of the app's own given already: a new one from the news
+        if source == .classic,
+           let made = await fromNews(level, range: range, language: language ?? newsLanguage) {
+            return made
+        }
+        guard let oldest = SentenceBank.random(level, language: language, maxLetters: maxLetters, fresh: false)
         else { return nil }
-        return MadeSentence(text: classic.text, language: classic.lang, isFallback: source == .news)
+        return MadeSentence(text: oldest.text, language: oldest.lang, isFallback: source == .news)
     }
 
     /// The device's language if there's news in it, else English.
@@ -64,8 +83,8 @@ enum SentenceMaker {
         return NewsHeadlines.feeds[code] != nil ? code : "en"
     }
 
-    private static func fromNews(_ level: SentenceBank.Level, range: ClosedRange<Int>, language: String,
-                                 avoiding last: String?) async -> MadeSentence? {
+    private static func fromNews(_ level: SentenceBank.Level, range: ClosedRange<Int>,
+                                 language: String) async -> MadeSentence? {
         guard let headlines = try? await NewsHeadlines.shared.headlines(language: language), !headlines.isEmpty else {
             return nil
         }
@@ -73,7 +92,7 @@ enum SentenceMaker {
         // 1. straight from a headline: a word (easy), or a part of one, or a whole short one
         for headline in shuffled {
             let pieces = level == .easy ? words(of: headline, language: language) : parts(of: headline)
-            if let piece = pieces.shuffled().first(where: { range.contains(letterCount($0)) && $0 != last }) {
+            if let piece = pieces.shuffled().first(where: { range.contains(letterCount($0)) && !SentenceHistory.wasGiven($0) }) {
                 return MadeSentence(text: piece, language: language, headline: headline)
             }
         }
@@ -81,7 +100,7 @@ enum SentenceMaker {
         for headline in shuffled.prefix(3) {
             if let sentence = await OnDeviceMeaningChecker().sentence(inspiredBy: headline, language: language,
                                                                       letters: range),
-               range.contains(letterCount(sentence)) {
+               range.contains(letterCount(sentence)), !SentenceHistory.wasGiven(sentence) {
                 return MadeSentence(text: sentence, language: language, headline: headline)
             }
         }
@@ -110,6 +129,41 @@ enum SentenceMaker {
         text.trimmingCharacters(in: CharacterSet(charactersIn: " \"'“”‘’«»-–—:,.;"))
             .replacingOccurrences(of: "  ", with: " ")
     }
+}
+
+/// Every sentence the app has given, kept across launches, so it never gives the same one
+/// twice (compared on letters and spaces only: case, accents and punctuation ignored).
+@MainActor
+enum SentenceHistory {
+    static let key = "sentences.given"
+    private static let limit = 5000
+
+    /// Oldest first.
+    private static var given: [String] {
+        get { UserDefaults.standard.stringArray(forKey: key) ?? [] }
+        set { UserDefaults.standard.set(Array(newValue.suffix(limit)), forKey: key) }
+    }
+
+    static func fold(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .filter { $0.isLetter || $0 == " " }
+            .split(separator: " ").joined(separator: " ")
+    }
+
+    static func wasGiven(_ text: String) -> Bool { given.contains(fold(text)) }
+
+    static func remember(_ text: String) {
+        let folded = fold(text)
+        given = given.filter { $0 != folded } + [folded]
+    }
+
+    /// How long ago it was given: 0 never, then bigger the more recent.
+    static func recency(_ text: String) -> Int {
+        let list = given
+        return list.lastIndex(of: fold(text)).map { $0 + 1 } ?? 0
+    }
+
+    static func forget() { UserDefaults.standard.removeObject(forKey: key) }
 }
 
 /// Headlines from the last seven days, per language, from Google News' RSS feeds (top

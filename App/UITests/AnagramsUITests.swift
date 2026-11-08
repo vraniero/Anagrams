@@ -126,7 +126,7 @@ final class AnagramsUITests: XCTestCase {
     func testMultiplayer() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demoText", "", "-duel.players", "", "-meaning", "yes", "-grammar", "ok",
-                               "-duel.meaningBonus", "YES", "-duel.maxLetters", "20"]
+                               "-duel.meaningBonus", "YES", "-duel.maxLetters", "20", "-duel.sentencesBy", "players"]
         app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         app.buttons["Game"].tap()
@@ -166,6 +166,31 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["English"].exists)
         shot(app, "13-multi-result")
         XCTAssertTrue(app.buttons["Next: Bo writes a sentence"].exists)
+    }
+
+    /// The app writes every sentence: players only solve, in turn.
+    @MainActor
+    func testMultiplayerAppSentences() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoText", "", "-duel.players", "", "-givenSentence", "Dormitory",
+                               "-duel.maxLetters", "20", "-meaning", "no",
+                               "-grammar", "ok", "-mute", "-still"]
+        app.launch()
+        app.buttons["Game"].tap()
+        app.buttons["Multiplayer"].tap()
+        XCTAssertTrue(app.staticTexts["SENTENCES"].waitForExistence(timeout: 5))
+        app.buttons["The app"].tap()
+        XCTAssertTrue(app.staticTexts["The app gives every sentence, a new one each time. Players just solve."].exists)
+        XCTAssertTrue(app.staticTexts["Sentence from"].exists)
+        shot(app, "16-multi-app-setup")
+        tapStart(app)
+        XCTAssertTrue(app.staticTexts["Pass the phone to Player 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["App sentences"].exists)
+        app.buttons["I'm ready"].tap()
+        app.buttons["Give up"].tap()
+        XCTAssertTrue(app.buttons["Next: Player 1's turn"].waitForExistence(timeout: 5))
+        app.buttons["Next: Player 1's turn"].tap()
+        XCTAssertTrue(app.staticTexts["Pass the phone to Player 1"].waitForExistence(timeout: 10))
     }
 
     /// An accented letter moved down loses its accent; the accent buttons put one back.
@@ -232,7 +257,7 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testMultiplayerSentenceRules() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", "", "-duel.players", "", "-grammar", "wrong", "-duel.maxLetters", "10",
+        app.launchArguments = ["-demoText", "", "-duel.players", "", "-grammar", "wrong", "-duel.maxLetters", "10", "-duel.sentencesBy", "players",
                                "-givenSentence", "Listen"]
         app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
