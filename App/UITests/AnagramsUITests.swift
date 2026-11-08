@@ -84,7 +84,7 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testHomeMenu() throws {
         let app = XCUIApplication()
-        app.launchArguments.append("-mute")  // simulator audio can stall the app
+        app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         sleep(2)
         shot(app, "0-home")
@@ -100,7 +100,7 @@ final class AnagramsUITests: XCTestCase {
     func testAgainstTheClock() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demoText", "", "-givenSentence", "Listen"]
-        app.launchArguments.append("-mute")  // simulator audio can stall the app
+        app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Against the clock"].tap()
@@ -127,7 +127,7 @@ final class AnagramsUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-demoText", "", "-duel.players", "", "-meaning", "yes", "-grammar", "ok",
                                "-duel.meaningBonus", "YES", "-duel.maxLetters", "20"]
-        app.launchArguments.append("-mute")  // simulator audio can stall the app
+        app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Multiplayer"].tap()
@@ -186,12 +186,28 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["A"].waitForExistence(timeout: 3))
     }
 
+    /// The swear words bonus: a swear word scores double, a rude full anagram triple.
+    @MainActor
+    func testSwearWordsBonus() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demoText", "", "-givenSentence", "this tins", "-meaning", "profane", "-swearBonus", "YES"]
+        app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
+        app.launch()
+        app.buttons["Game"].tap()
+        app.buttons["Against the clock"].tap()
+        app.buttons["Start"].tap()
+        for letter in ["S", "H", "I", "T"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
+        app.buttons["Check"].tap()
+        XCTAssertTrue(app.staticTexts["+8 🤬 shit ×2 · English"].waitForExistence(timeout: 10))
+        shot(app, "19-swear")
+    }
+
     /// Multiplayer sentences must fit the letter limit and pass the grammar check.
     @MainActor
     func testMultiplayerSentenceRules() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-demoText", "", "-duel.players", "", "-grammar", "wrong", "-duel.maxLetters", "10"]
-        app.launchArguments.append("-mute")  // simulator audio can stall the app
+        app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Multiplayer"].tap()
@@ -235,7 +251,7 @@ final class AnagramsUITests: XCTestCase {
     private func launch(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments
-        app.launchArguments.append("-mute")  // simulator audio can stall the app
+        app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         let training = app.buttons["Training"]
         XCTAssertTrue(training.waitForExistence(timeout: 5))
@@ -261,8 +277,9 @@ final class AnagramsUITests: XCTestCase {
 
     private func tapMakeAnagram(_ app: XCUIApplication) {
         let make = app.buttons["Make anagram"]
-        XCTAssertTrue(make.waitForExistence(timeout: 5))
-        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: make)], timeout: 5)
+        // generous: on a busy Mac the simulator can take a while
+        XCTAssertTrue(make.waitForExistence(timeout: 15))
+        wait(for: [expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: make)], timeout: 15)
         sleep(2)  // let the whole demo sentence arrive
         make.tap()
     }

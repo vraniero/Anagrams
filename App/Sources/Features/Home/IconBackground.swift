@@ -13,8 +13,8 @@ struct IconBackground: View {
     private static let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
-            let t = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion || Motion.isStill)) { timeline in
+            let t = reduceMotion || Motion.isStill ? 0 : timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, size in
                 drawGlows(&context, size, t)
                 for i in 0..<Self.tiles { drawTile(i, &context, size, t) }
@@ -98,8 +98,8 @@ struct CirclingArrows: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.animation(paused: reduceMotion)) { timeline in
-            let t = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(paused: reduceMotion || Motion.isStill)) { timeline in
+            let t = reduceMotion || Motion.isStill ? 0 : timeline.date.timeIntervalSinceReferenceDate
             Canvas { context, size in
                 let center = CGPoint(x: size.width / 2, y: size.height / 2)
                 let radius = CGSize(width: size.width / 2 - 8, height: size.height / 2 - 8)

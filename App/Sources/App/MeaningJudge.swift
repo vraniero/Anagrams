@@ -128,6 +128,8 @@ private struct Judgement {
     var reading: String
     @Guide(description: "true only if the phrase, read in the given order, has a coherent meaning")
     var makesSense: Bool
+    @Guide(description: "true only if the phrase as a whole is a swear, a curse, an insult or something vulgar")
+    var isProfane: Bool
 }
 
 @available(iOS 26, *)
@@ -146,11 +148,21 @@ private enum Referee {
         poetic line a reader can still understand. A missing article or punctuation is fine. Words may come \
         from different languages: judge the mix as a multilingual reader would ("the gato sleeps" makes sense).
 
+        Swearing is part of the game: a rude or vulgar phrase can make perfect sense. Judge it like any other \
+        phrase, and say whether it is a profanity.
+
         It does not make sense if it is a list of unrelated words ("cat dog tree", "lens tin"), word salad, \
         or words in an order the language doesn't allow ("barks a dog").
 
         Write in English.
         """
+
+    static func containsSwear(_ phrase: String, languages: [String]) -> Bool {
+        phrase.split(whereSeparator: { !$0.isLetter }).contains { word in
+            languages.isEmpty ? Profanity.isSwear(String(word), language: nil)
+                              : languages.contains { Profanity.isSwear(String(word), language: $0) }
+        }
+    }
 
     static func judge(_ phrase: String, languages: [String]) async -> Meaning? {
         let session = LanguageModelSession(instructions: instructions)
@@ -164,9 +176,16 @@ private enum Referee {
             if judgement.makesSense, Meaning.isReordering(judgement.natural, of: phrase) {
                 return Meaning(makesSense: false, reading: "Close, but the words are out of order: “\(judgement.natural)”.")
             }
-            return Meaning(makesSense: judgement.makesSense, reading: judgement.reading)
+            return Meaning(makesSense: judgement.makesSense, reading: judgement.reading,
+                           isProfane: judgement.makesSense && judgement.isProfane)
+        } catch let error as LanguageModelSession.GenerationError {
+            // too rude for the model to even read: with swear words in it, that's a profanity
+            if case .guardrailViolation = error, containsSwear(phrase, languages: languages) {
+                return Meaning(makesSense: true, reading: "Too rude to read out loud!", isProfane: true)
+            }
+            return nil
         } catch {
-            return nil  // refused, unsupported language, model busy: no bonus, no penalty
+            return nil  // unsupported language, model busy: no bonus, no penalty
         }
     }
 }

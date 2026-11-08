@@ -75,7 +75,8 @@ final class GameSession {
         }
         let meaning = value("-meaning"), grammar = value("-grammar")
         if meaning != nil || grammar != nil {
-            return FixedMeaningChecker(makesSense: meaning.map { $0 == "yes" }, grammarOK: grammar.map { $0 == "ok" })
+            return FixedMeaningChecker(makesSense: meaning.map { $0 == "yes" || $0 == "profane" },
+                                       grammarOK: grammar.map { $0 == "ok" }, profane: meaning == "profane")
         }
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
             return FixedMeaningChecker(makesSense: nil, grammarOK: nil)
@@ -250,6 +251,7 @@ final class GameSession {
 struct FixedMeaningChecker: MeaningChecker, SentenceProofreader {
     let makesSense: Bool?
     let grammarOK: Bool?
+    var profane = false
     var isAvailable: Bool { makesSense != nil || grammarOK != nil }
 
     func corrected(_ sentence: String, languages: [String]) async -> String? {
@@ -261,6 +263,7 @@ struct FixedMeaningChecker: MeaningChecker, SentenceProofreader {
     func meaning(of phrase: String, languages: [String]) async -> Meaning? {
         guard let makesSense else { return nil }
         try? await Task.sleep(for: .milliseconds(300))
+        if profane { return Meaning(makesSense: true, reading: "A very rude phrase.", isProfane: true) }
         return Meaning(makesSense: makesSense, reading: makesSense ? "It reads as a real phrase." : "Just words side by side.")
     }
 }

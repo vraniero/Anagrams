@@ -10,6 +10,7 @@ struct VerdictView: View {
     let verdict: AnagramVerdict
     @Environment(\.dismiss) private var dismiss
     @Environment(GameSession.self) private var session
+    @AppStorage(Options.swearBonusKey) private var swearBonus = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -19,7 +20,10 @@ struct VerdictView: View {
             Text(verdict.isValid ? "Yes! It's an anagram." : "Not yet")
                 .font(.title.bold())
 
-            if verdict.isValid { MeaningNote(meaning: session.meaning, isChecking: session.isCheckingMeaning) }
+            if verdict.isValid {
+                MeaningNote(meaning: session.meaning, isChecking: session.isCheckingMeaning,
+                            showsProfanity: swearBonus)
+            }
 
             ForEach(Array(verdict.problems.enumerated()), id: \.offset) { _, problem in
                 Text(message(problem)).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -29,6 +33,9 @@ struct VerdictView: View {
                 ForEach(Array(verdict.words.enumerated()), id: \.offset) { _, word in
                     HStack {
                         Text(word.text.lowercased()).font(.title3.weight(.semibold))
+                        if swearBonus && Profanity.isSwear(word.text, language: word.language) {
+                            Text("🤬 ×2").font(.subheadline.weight(.bold)).foregroundStyle(.orange)
+                        }
                         Spacer()
                         if let language = word.language {
                             Text(name(of: language)).foregroundStyle(.secondary)
@@ -69,6 +76,8 @@ struct VerdictView: View {
 struct MeaningNote: View {
     let meaning: Meaning?
     let isChecking: Bool
+    /// The swear words bonus is on: say when the phrase is a profanity (triple in the games).
+    var showsProfanity = false
 
     var body: some View {
         Group {
@@ -77,7 +86,8 @@ struct MeaningNote: View {
                     .foregroundStyle(.secondary)
             } else if let meaning {
                 VStack(spacing: 4) {
-                    Label(meaning.makesSense ? "It makes sense!" : "Real words, but no meaning together",
+                    Label(showsProfanity && meaning.isProfane ? "A proper profanity! 🤬 ×3 in the games"
+                          : meaning.makesSense ? "It makes sense!" : "Real words, but no meaning together",
                           systemImage: meaning.makesSense ? "sparkles" : "text.word.spacing")
                         .font(.headline)
                         .foregroundStyle(meaning.makesSense ? Color.orange : .secondary)
