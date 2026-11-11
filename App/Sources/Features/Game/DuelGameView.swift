@@ -28,6 +28,9 @@ struct DuelGameView: View {
     @State private var sentences: AppSentences?
     @State private var made: MadeSentence?
     @State private var makingFailed = false
+    /// Anagrams that were possible this turn; nil while looking.
+    @State private var solutions: [Suggestion]?
+    @State private var turnID = UUID()
     @State private var start = Date.now
     @State private var end: Date?
 
@@ -199,6 +202,7 @@ struct DuelGameView: View {
                             }
                         }
                     }
+                    PossibleAnagrams(solutions: solutions, solved: solved)
                     scoreboard
                     Button(duel.isOver ? "See who won"
                            : sentences == nil ? "Next: \(setter) writes a sentence" : "Next: \(solver)'s turn",
@@ -334,9 +338,27 @@ struct DuelGameView: View {
         } else {
             nil
         }
+        findSolutions(besides: answer)
         withAnimation {
             phase = .result(points: points, solved: solved, answer: answer,
                             meaning: settings.meaningBonus || isProfane ? meaning : nil, bonus: solved ? bonus : nil)
+        }
+    }
+
+    /// What else the sentence could have become (the player's own answer left out).
+    private func findSolutions(besides answer: [AnagramVerdict.CheckedWord]) {
+        let id = UUID()
+        turnID = id
+        solutions = nil
+        func words(_ text: String) -> String {
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                .split(whereSeparator: { !$0.isLetter }).joined(separator: " ")
+        }
+        let given = words(answer.map(\.text).joined(separator: " "))
+        Task {
+            let found = await session.suggestions()
+            guard turnID == id else { return }
+            withAnimation { solutions = Array(found.filter { words($0.text) != given }.prefix(5)) }
         }
     }
 
@@ -347,6 +369,42 @@ struct DuelGameView: View {
             session.restart()
             nextSentence()
         }
+    }
+}
+
+/// The anagrams the sentence allowed, shown after each turn.
+private struct PossibleAnagrams: View {
+    let solutions: [Suggestion]?
+    let solved: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text((solved ? "Other possible anagrams" : "Possible anagrams").uppercased())
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Theme.glowLight)
+            if let solutions, solutions.isEmpty {
+                Text(solved ? "None found: well done!" : "None found: a tough one.")
+                    .foregroundStyle(.white.opacity(0.8))
+            } else if let solutions {
+                ForEach(solutions) { solution in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(solution.text.lowercased())
+                            .font(.headline)
+                            .foregroundStyle(Theme.cream)
+                        Text(Array(Set(solution.languages)).sorted().map { languageName($0) ?? $0 }
+                            .joined(separator: ", "))
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                }
+            } else {
+                Label { Text("Looking for anagrams…") } icon: { ProgressView().tint(.white) }
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Theme.navyDeep.opacity(0.9), in: .rect(cornerRadius: 18, style: .continuous))
     }
 }
 

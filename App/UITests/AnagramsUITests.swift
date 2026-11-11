@@ -164,6 +164,9 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Bo did it! +18"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["It makes sense: double points!"].exists)
         XCTAssertTrue(app.staticTexts["English"].exists)
+        XCTAssertTrue(app.staticTexts["OTHER POSSIBLE ANAGRAMS"].exists)
+        XCTAssertTrue(app.staticTexts["Looking for anagrams…"].waitForNonExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["dirty moor"].exists)
         shot(app, "13-multi-result")
         XCTAssertTrue(app.buttons["Next: Bo writes a sentence"].exists)
     }
