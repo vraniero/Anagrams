@@ -30,7 +30,7 @@ them into new words and the app checks the result. The app never records audio.
 - **Multiplayer** (2 to 4 players on one phone): chosen before the game starts, either each
   player writes a sentence for the next one to solve, or the app writes every sentence and
   the players take turns solving. Time, rounds, longest sentence, languages and scoring are
-  set up front too.
+  set up front too. After each turn, the app shows other anagrams that were possible.
 
 The app never gives the same sentence twice: it remembers every one it has given. When its
 own sentences for a choice run out, it turns to the news.
