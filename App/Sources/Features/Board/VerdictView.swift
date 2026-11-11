@@ -41,7 +41,7 @@ struct VerdictView: View {
                             Text(name(of: language)).foregroundStyle(.secondary)
                             Image(systemName: "checkmark").foregroundStyle(.green)
                         } else {
-                            Text("not a word").foregroundStyle(.secondary)
+                            Text(word.isBanned ? "not allowed" : "not a word").foregroundStyle(.secondary)
                             Image(systemName: "xmark").foregroundStyle(.red)
                         }
                     }
@@ -61,6 +61,9 @@ struct VerdictView: View {
         case .lettersDiffer: "Use every letter exactly once."
         case .mixedLanguages: "All the words must be in the same language."
         case .sameAsSource: "That's the original sentence: rearrange the letters."
+        case .notAllowed(let words):
+            words.count == 1 ? "“\(words[0])”: single letters and acronyms don't count."
+                             : "Single letters and acronyms don't count: \(words.joined(separator: ", "))."
         case .unknownWords(let words):
             words.count == 1 ? "“\(words[0])” isn't a word in any language I know."
                              : "Some words aren't words in any language I know."

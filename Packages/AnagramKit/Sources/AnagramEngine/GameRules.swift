@@ -26,6 +26,8 @@ public struct ClockRound: Equatable, Sendable {
         case scored(Found)
         case alreadyFound(String)
         case notAWord(String)
+        /// A single letter or an acronym.
+        case notAllowed(String)
         case fromSentence(String)
         /// The words checked together weren't all in one language (when that's the rule).
         case mixedLanguages
@@ -52,7 +54,9 @@ public struct ClockRound: Equatable, Sendable {
         for word in verdict.words {
             let key = checker.normalized(word.text)
             guard !key.isEmpty else { continue }
-            if word.language == nil {
+            if word.isBanned {
+                outcomes.append(.notAllowed(word.text))
+            } else if word.language == nil {
                 outcomes.append(.notAWord(word.text))
             } else if sentenceWords.contains(key) {
                 outcomes.append(.fromSentence(word.text))

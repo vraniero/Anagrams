@@ -140,6 +140,7 @@ private struct FeedbackChip: View {
             ("+\(found.points) \(Self.label(found)) · \(languageNames(found.languages))", .green)
         case .alreadyFound(let word): ("\(word.lowercased()): already found", .orange)
         case .notAWord(let word): ("\(word.lowercased()): not a word", .red)
+        case .notAllowed(let word): ("\(word.lowercased()): no single letters or acronyms", .red)
         case .fromSentence(let word): ("\(word.lowercased()): from the sentence", .orange)
         case .mixedLanguages: ("words must share one language", .orange)
         }
