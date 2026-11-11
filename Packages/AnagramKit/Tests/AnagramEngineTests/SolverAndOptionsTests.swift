@@ -19,8 +19,8 @@ struct SameLanguageTests {
     }
 
     @Test func sameLanguagePicksTheSharedOne() async {
-        // "a" is English first, but "amore" only Italian: both become Italian
-        let verdict = await judge.judge(Phrase(text: "a amore"), source: Phrase(text: "Roma è a"), sameLanguage: true)
+        // "me" is English first, but "amore" only Italian: both become Italian
+        let verdict = await judge.judge(Phrase(text: "me amore"), source: Phrase(text: "Roma è me"), sameLanguage: true)
         #expect(verdict.words.map(\.language) == ["it", "it"])
         #expect(verdict.isValid)
     }

@@ -15,7 +15,10 @@ final class Suggester {
         let solver = await loadedSolver()
         let preferring = source.languageCodes
         let raw = await Task.detached(priority: .userInitiated) {
-            let candidates = solver.candidates(for: text).filter { $0.rank < 20_000 }
+            // no single letters or acronyms
+            let candidates = solver.candidates(for: text).filter {
+                $0.rank < 20_000 && WordRules.isAllowed($0.word, language: $0.language)
+            }
             return solver.solve(text, candidates: candidates, sameLanguage: sameLanguage,
                                 preferring: preferring, limit: 80, timeLimit: .seconds(2))
         }.value
@@ -31,14 +34,8 @@ final class Suggester {
         return result
     }
 
-    /// Spell checkers accept any single letter ("n", "m"); these are real one-letter words.
-    static let oneLetterWords: [String: Set<String>] = [
-        "en": ["a", "i"], "it": ["a", "e", "è", "i", "o"], "es": ["a", "e", "o", "u", "y"],
-        "fr": ["a", "à", "y"], "pt": ["a", "à", "e", "é", "o"], "nl": [], "de": [],
-    ]
-
     private func isWord(_ word: String, _ language: String, _ validator: any WordValidator) async -> Bool {
-        if word.count == 1 { return Self.oneLetterWords[language]?.contains(word.lowercased()) == true }
+        guard WordRules.isAllowed(word, language: language) else { return false }
         let key = "\(language)|\(word)"
         if let known = known[key] { return known }
         let ok = await validator.isWord(word, in: language)
