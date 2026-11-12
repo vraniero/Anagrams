@@ -87,7 +87,10 @@ struct SentenceBank {
         return (try? JSONDecoder().decode([Sentence].self, from: data)) ?? []
     }()
 
-    static var languages: [String] { Array(Set(all.map(\.lang))).sorted() }
+    /// Languages with the app's own sentences or lines of literature (Classic falls back to the
+    /// news in a language it has none of).
+    @MainActor
+    static var languages: [String] { Array(Set(all.map(\.lang) + Literature.all.map(\.lang))).sorted() }
 
     /// A random sentence of that level (in that language, if given).
     /// `fresh`: only one never given before (nil when they all were); otherwise the one

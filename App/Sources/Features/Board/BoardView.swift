@@ -7,6 +7,11 @@ import AnagramModels
 ///
 /// Dragging is a plain drag gesture (no long press, nothing scrolls): the block follows the
 /// finger and lands where it's released.
+///
+/// The two cards share the room by what they hold (`BoardFit`): one tile size for both, as
+/// big as lets every tile show without scrolling. As letters move down the sentence card
+/// shrinks and the anagram card grows. Punctuation and accents open from a key on the
+/// anagram card.
 struct BoardView: View {
     @Environment(GameSession.self) private var session
 
@@ -30,54 +35,32 @@ struct BoardView: View {
     @State private var suggestions: [Suggestion]?  // nil while looking
     @Namespace private var tiles  // a block moving between tray and anagram flies across
     @State private var frames: [AnyHashable: CGRect] = [:]  // areas, words and blocks, in "board" space
-    @State private var trayHeight: CGFloat = 0
-    @State private var candidateHeight: CGFloat = 0
-    @State private var trayContentHeight: CGFloat = 0
-    @State private var candidateContentHeight: CGFloat = 0
+    @State private var area: CGSize = .zero  // room for the two cards
+    @State private var showsMarks = false
     private let space = "board"
 
     var body: some View {
         @Bindable var session = session
         ZStack {
             IconBackground()
-            FittingBlocks(longestWord: session.board.source.words.map(\.blocks.count).max() ?? 0,
-                          maxSize: BlockMetrics.maxSize(letters: session.board.source.words.reduce(0) { $0 + $1.blocks.count })) {
-                VStack(spacing: 12) {
-                    if let header {
-                        header
-                            .background(Theme.navyDeep.opacity(0.88), in: .rect(cornerRadius: 22, style: .continuous))
-                    }
-                    scrolling(tray, height: $trayHeight, contentHeight: $trayContentHeight)
-                        // the sentence takes the room its tiles need (it scrolls past that)…
-                        .frame(maxHeight: trayContentHeight > 0 ? trayContentHeight : nil)
-                        .layoutPriority(1)
-                        .boardCard(highlighted: false)
-                        .measure(Area.tray, into: $frames, space: space)
-
-                    Image(systemName: "chevron.compact.down")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(Theme.glowLight.opacity(0.6))
-                        .accessibilityHidden(true)
-
-                    scrolling(candidate, height: $candidateHeight, contentHeight: $candidateContentHeight)
-                        // …the anagram the rest, never less than a good place to drop tiles
-                        .frame(minHeight: 130)
-                        .boardCard(highlighted: isOverCandidate)
-                        .measure(Area.candidate, into: $frames, space: space)
-
-                    VStack(spacing: 6) {
-                        marks
-                        accents
-                    }
-                    .padding(.top, 4)
-
-                    controls
+            VStack(spacing: 12) {
+                if let header {
+                    header
+                        .background(Theme.navyDeep.opacity(0.88), in: .rect(cornerRadius: 22, style: .continuous))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
-                .coordinateSpace(.named(space))
-                .overlay { floatingBlock }
+                // the room left is measured on an empty space, so the cards sized from it
+                // can't change it back
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { area = $0 }
+                    .overlay(alignment: .top) { cards }
+                controls
             }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .coordinateSpace(.named(space))
+            .overlay { floatingBlock }
         }
         .environment(\.colorScheme, .dark)
         .toolbarColorScheme(.dark, for: .navigationBar)
@@ -97,19 +80,51 @@ struct BoardView: View {
 
     private enum Area: Hashable { case tray, candidate }
 
-    /// A card's tiles, centred; when there are too many to fit, the card scrolls (the keys
-    /// and buttons below always stay on screen).
-    private func scrolling(_ content: some View, height: Binding<CGFloat>, contentHeight: Binding<CGFloat>) -> some View {
+    /// Tile size and card heights for what's on the board now.
+    private var fit: BoardFit.Result {
+        let board = session.board
+        let unused = Set(board.tray.map(\.id))
+        let trayWords = board.source.words.map { $0.blocks.filter { unused.contains($0.id) }.count }.filter { $0 > 0 }
+        var words = board.words.map(\.blocks.count)
+        if words.isEmpty { words = [0] }
+        words[words.count - 1] += 1  // the cursor slot
+        return BoardFit.layout(tray: trayWords, candidate: words, in: area)
+    }
+
+    /// The sentence card, the arrow, and the anagram card, sized by `fit`.
+    private var cards: some View {
+        let fit = fit
+        return VStack(spacing: BoardFit.cardSpacing) {
+            card(tray, height: fit.tray)
+                .boardCard(highlighted: false)
+                .measure(Area.tray, into: $frames, space: space)
+            Image(systemName: "chevron.compact.down")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Theme.glowLight.opacity(0.6))
+                .accessibilityHidden(true)
+                .frame(maxWidth: .infinity)
+                .frame(height: BoardFit.arrowHeight)
+                .overlay(alignment: .trailing) { marksKey }
+            card(candidate, height: fit.candidate)
+                .boardCard(highlighted: isOverCandidate)
+                .measure(Area.candidate, into: $frames, space: space)
+        }
+        .environment(\.blockSize, fit.size)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .animation(Self.move, value: fit)
+    }
+
+    /// A card's tiles, centred. They're sized to fit; only a sentence too long even for
+    /// the smallest tiles scrolls.
+    private func card(_ content: some View, height: CGFloat) -> some View {
         ScrollView {
             content
-                .padding(18)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight.wrappedValue = $0 }
-                .frame(maxWidth: .infinity, minHeight: height.wrappedValue)
+                .padding(BoardFit.padding)
+                .frame(maxWidth: .infinity, minHeight: height)
         }
         .scrollBounceBehavior(.basedOnSize)
-        .scrollIndicators(.visible)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height.wrappedValue = $0 }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
     }
 
     /// How blocks move: a little bounce when they land.
@@ -121,28 +136,32 @@ struct BoardView: View {
 
     // MARK: areas
 
-    /// The starting sentence; used blocks leave an empty slot.
-    private var tray: some View {
+    /// The letters of the sentence still to use, word by word; used ones leave no gap.
+    @ViewBuilder private var tray: some View {
         let unused = Set(session.board.tray.map(\.id))
-        return FlowLayout(spacing: BlockMetrics.wordSpacing) {
-            ForEach(session.board.source.words) { word in
-                WordBlocks {
-                    ForEach(word.blocks) { block in
-                        if unused.contains(block.id) {
+        let words = session.board.source.words.filter { $0.blocks.contains { unused.contains($0.id) } }
+        if words.isEmpty {
+            Label("All letters used", systemImage: "checkmark")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.glowLight.opacity(0.8))
+        } else {
+            FlowLayout(spacing: BlockMetrics.wordSpacing, lineSpacing: BoardFit.lineSpacing) {
+                ForEach(words) { word in
+                    WordBlocks {
+                        ForEach(word.blocks.filter { unused.contains($0.id) }) { block in
                             movable(block) { session.board.place(block.id) }
-                        } else {
-                            EmptySlotView()
                         }
                     }
                 }
             }
+            .animation(Self.move, value: session.board)
         }
     }
 
     /// The words being built. The last word (tinted) is where tapped blocks go.
     private var candidate: some View {
         let words = session.board.words
-        return FlowLayout(spacing: BlockMetrics.wordSpacing) {
+        return FlowLayout(spacing: BlockMetrics.wordSpacing, lineSpacing: BoardFit.lineSpacing) {
             ForEach(Array(words.enumerated()), id: \.element.id) { w, word in
                 WordBlocks {
                     ForEach(word.blocks) { block in
@@ -153,7 +172,7 @@ struct BoardView: View {
                         EmptySlotView()  // the cursor: where the next block goes
                     }
                 }
-                .padding(4)
+                .padding(BoardFit.wordPadding)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
                         .fill(w == words.count - 1 ? Theme.glow.opacity(0.14) : .clear)
@@ -268,6 +287,33 @@ struct BoardView: View {
 }
 
 extension BoardView {
+    /// The key on the anagram card that opens punctuation and accents.
+    private var marksKey: some View {
+        Button {
+            showsMarks = true
+        } label: {
+            Text(",!?´")
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .keycap(on: showsMarks)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Punctuation and accents")
+        .popover(isPresented: $showsMarks, attachmentAnchor: .point(.top), arrowEdge: .bottom) {
+            VStack(spacing: 8) {
+                marks
+                accents
+            }
+            .padding(12)
+            .frame(width: 340)
+            .presentationCompactAdaptation(.popover)
+            .presentationBackground(Theme.navyDeep)
+            .environment(\.colorScheme, .dark)
+        }
+    }
+
     /// Punctuation marks: as many as you like, they don't count as letters.
     private var marks: some View {
         HStack(spacing: 6) {
@@ -353,5 +399,69 @@ private extension View {
     /// Records this view's frame in the named coordinate space.
     func measure(_ key: AnyHashable, into frames: Binding<[AnyHashable: CGRect]>, space: String) -> some View {
         onGeometryChange(for: CGRect.self) { $0.frame(in: .named(space)) } action: { frames.wrappedValue[key] = $0 }
+    }
+}
+
+/// Sizes the board: one tile size for both cards, the biggest that lets every tile show,
+/// and each card's height from the tiles it holds. Mirrors `FlowLayout`/`WordBlocks`.
+enum BoardFit {
+    struct Result: Equatable {
+        var size: CGFloat
+        var tray: CGFloat
+        var candidate: CGFloat
+    }
+
+    static let padding: CGFloat = 16
+    static let lineSpacing: CGFloat = 10
+    static let wordPadding: CGFloat = 4
+    static let cardSpacing: CGFloat = 6
+    static let arrowHeight: CGFloat = 30
+    static let smallest: CGFloat = 20
+    /// The empty sentence card ("All letters used").
+    static let emptyTray: CGFloat = 48
+
+    /// `tray`, `candidate`: letters per word (the anagram's words with their padding).
+    static func layout(tray: [Int], candidate: [Int], in area: CGSize) -> Result {
+        guard area.width > 0, area.height > 0 else {
+            return Result(size: BlockMetrics.maxSize, tray: 120, candidate: 160)
+        }
+        let width = area.width - 2 * padding
+        let room = area.height - arrowHeight - 2 * cardSpacing
+        var size = BlockMetrics.maxSize
+        func needs(_ s: CGFloat) -> (CGFloat, CGFloat) {
+            let t = tray.isEmpty ? emptyTray : height(tray, size: s, width: width, pad: 0) + 2 * padding
+            // the anagram card: at least room for a line more, to drop tiles on
+            let c = height(candidate, size: s, width: width, pad: wordPadding) + 2 * padding + s
+            return (t, c)
+        }
+        var (t, c) = needs(size)
+        while t + c > room && size > smallest {
+            size -= 1
+            (t, c) = needs(size)
+        }
+        let trayHeight = min(t, max(emptyTray, room - c))
+        return Result(size: size, tray: trayHeight, candidate: max(room - trayHeight, 0))
+    }
+
+    /// The height of words of `letters` tiles, wrapped into `width` like the board does.
+    static func height(_ letters: [Int], size s: CGFloat, width: CGFloat, pad: CGFloat) -> CGFloat {
+        let gap = BlockMetrics.gap
+        var rows: [CGFloat] = []  // row heights
+        var rowWidth: CGFloat = 0
+        for n in letters where n > 0 {
+            let perLine = max(1, Int((width - 2 * pad + gap) / (s + gap)))
+            let lines = (n + perLine - 1) / perLine
+            let w = CGFloat(min(n, perLine)) * (s + gap) - gap + 2 * pad
+            let h = CGFloat(lines) * (s + gap) - gap + 2 * pad
+            if rows.isEmpty || rowWidth + BlockMetrics.wordSpacing + w > width {
+                rows.append(h)
+                rowWidth = w
+            } else {
+                rows[rows.count - 1] = max(rows[rows.count - 1], h)
+                rowWidth += BlockMetrics.wordSpacing + w
+            }
+        }
+        guard !rows.isEmpty else { return 0 }
+        return rows.reduce(0, +) + lineSpacing * CGFloat(rows.count - 1)
     }
 }

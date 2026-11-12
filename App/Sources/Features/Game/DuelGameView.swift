@@ -175,6 +175,11 @@ struct DuelGameView: View {
                                 .font(.footnote)
                                 .multilineTextAlignment(.center)
                                 .foregroundStyle(.white.opacity(0.7))
+                        } else if let quote = made?.quote {
+                            Text("From \(quote.credit): “\(quote.text)”")
+                                .font(.footnote)
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(.white.opacity(0.7))
                         }
                         if !answer.isEmpty {
                             Image(systemName: "arrow.down")
@@ -441,7 +446,7 @@ private struct RulesSummary: View {
     var body: some View {
         FlowLayout(spacing: 8) {
             if let made = sentences {
-                chip(made.source == .news ? "News sentences" : "App sentences", "dice")
+                chip(made.source == .news ? "News sentences" : made.source == .literature ? "Literature" : "App sentences", "dice")
             }
             chip(settings.sameLanguage ? "One language" : "Any languages", "character.book.closed")
             chip(settings.scoring.title, "star")

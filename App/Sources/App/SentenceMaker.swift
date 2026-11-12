@@ -7,16 +7,39 @@ enum SentenceSource: String, CaseIterable, Identifiable {
     /// Last week's newspaper headlines: a headline (or part of one) that fits the level, or a
     /// short sentence Apple Intelligence writes inspired by one.
     case news
+    /// Real lines of classic authors (literature.json): a word, a part, or the whole line.
+    case literature
 
     var id: String { rawValue }
-    var title: String { self == .classic ? "Classic" : "Newspapers" }
+    var title: String {
+        switch self {
+        case .classic: "Classic"
+        case .news: "Newspapers"
+        case .literature: "Literature"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .classic: "text.book.closed"
+        case .news: "newspaper"
+        case .literature: "books.vertical"
+        }
+    }
+    var detail: String {
+        switch self {
+        case .classic: "The app's own sentences."
+        case .news: "From last week's newspaper headlines, or inspired by one."
+        case .literature: "From real lines of classic authors: a word of the line, a part of it, or all of it."
+        }
+    }
 }
 
-/// A sentence the app made, and the headline behind it (newspapers).
+/// A sentence the app made, and the headline (newspapers) or line (literature) behind it.
 struct MadeSentence: Equatable {
     let text: String
     let language: String
     var headline: String? = nil
+    var quote: LiteraryQuote? = nil
     /// The news couldn't be read: this is a classic sentence instead.
     var isFallback = false
 }
@@ -62,6 +85,12 @@ enum SentenceMaker {
                              maxLetters: Int?) async -> MadeSentence? {
         let range = letters(level, maxLetters: maxLetters)
         if source == .news, let made = await fromNews(level, range: range, language: language ?? newsLanguage) {
+            return made
+        }
+        // literature: a new piece of a line, else the one given longest ago
+        if source == .literature,
+           let made = Literature.make(level, range: range, language: language, fresh: true)
+            ?? Literature.make(level, range: range, language: language, fresh: false) {
             return made
         }
         if let classic = SentenceBank.random(level, language: language, maxLetters: maxLetters, fresh: true) {

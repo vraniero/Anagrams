@@ -40,7 +40,10 @@ final class AnagramsUITests: XCTestCase {
         sleep(1)
         shot(app, "5-dragged")
         let moved = app.staticTexts.matching(identifier: "K").firstMatch.frame
-        XCTAssertGreaterThan(moved.midY, before.midY + 100, "K should have moved down to the anagram area")
+        XCTAssertNotEqual(moved, before)
+        // in the anagram card: below the arrow row and its punctuation key
+        XCTAssertGreaterThan(moved.minY, app.buttons["Punctuation and accents"].frame.maxY,
+                             "K should have moved down to the anagram area")
     }
 
     /// However long the sentence, Check stays on screen and can be tapped.
@@ -204,6 +207,7 @@ final class AnagramsUITests: XCTestCase {
         app.staticTexts.matching(identifier: "À").firstMatch.tap()
         XCTAssertTrue(app.staticTexts["A"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["À"].exists)
+        app.buttons["Punctuation and accents"].tap()
         app.buttons["Grave accent"].tap()
         XCTAssertTrue(app.staticTexts["À"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Grave accent"].isSelected)
@@ -303,7 +307,9 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(first.waitForExistence(timeout: 15))
         shot(app, "15-suggestions")
         first.buttons.firstMatch.exists ? first.buttons.firstMatch.tap() : first.tap()
+        app.buttons["Punctuation and accents"].tap()
         app.buttons["Add !"].tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()  // closes the panel
         shot(app, "16-arranged")
         app.buttons["Check"].tap()
         XCTAssertTrue(app.staticTexts["Yes! It's an anagram."].waitForExistence(timeout: 10))
