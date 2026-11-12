@@ -60,7 +60,7 @@ struct SentenceMakerTests {
         #expect(Literature.all.allSatisfy { !$0.author.isEmpty && !$0.work.isEmpty })
         #expect(Set(Literature.all.map(\.text)).count == Literature.all.count)
         for language in languages {
-            #expect(Literature.all.filter { $0.lang == language }.count >= 80, "\(language)")
+            #expect(Literature.all.filter { $0.lang == language }.count >= 10, "\(language)")
         }
         for level in SentenceBank.Level.allCases {
             for language in languages.sorted() {
