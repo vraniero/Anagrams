@@ -57,6 +57,12 @@ struct ClockGameView: View {
                     .foregroundStyle(.white.opacity(0.65))
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let quote = made?.quote {
+                Label("“\(quote.text)” — \(quote.credit)", systemImage: "books.vertical")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             if session.isCheckingMeaning {
                 Label { Text("Checking the meaning…") } icon: { ProgressView() }
@@ -321,9 +327,7 @@ struct SentenceChoice: View {
                     ForEach(SentenceSource.allCases) { Text($0.title).tag($0.rawValue) }
                 }
                 .pickerStyle(.segmented)
-                Text(source == SentenceSource.news.rawValue
-                     ? "From last week's newspaper headlines, or inspired by one."
-                     : "The app's own sentences.")
+                Text((SentenceSource(rawValue: source) ?? .classic).detail)
                     .font(.footnote).foregroundStyle(.white.opacity(0.7))
             }
             HStack {

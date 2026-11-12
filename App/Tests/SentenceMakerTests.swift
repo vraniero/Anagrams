@@ -51,4 +51,26 @@ struct SentenceMakerTests {
         #expect(SentenceBank.random(.hard, language: "en", fresh: false).map { SentenceHistory.fold($0.text) } == given.first)
         #expect(SentenceHistory.wasGiven(given[0].uppercased() + "!"))
     }
+
+    @Test func literatureGivesRealLinesWithTheirAuthor() async {
+        SentenceHistory.forget()
+        defer { SentenceHistory.forget() }
+        let languages = Set(Literature.all.map(\.lang))
+        #expect(languages.isSuperset(of: Set(SentenceBank.all.map(\.lang))))
+        #expect(Literature.all.allSatisfy { !$0.author.isEmpty && !$0.work.isEmpty })
+        #expect(Set(Literature.all.map(\.text)).count == Literature.all.count)
+        for language in languages {
+            #expect(Literature.all.filter { $0.lang == language }.count >= 80, "\(language)")
+        }
+        for level in SentenceBank.Level.allCases {
+            for language in languages.sorted() {
+                let made = await SentenceMaker.make(level, source: .literature, language: language)
+                let quote = try? #require(made?.quote, "\(level) \(language)")
+                #expect(quote?.lang == language)
+                #expect(made.map { SentenceMaker.letters(level).contains(SentenceMaker.letterCount($0.text)) } == true)
+                // a piece of the real line
+                #expect(made.map { quote?.text.contains($0.text) == true } == true)
+            }
+        }
+    }
 }

@@ -13,15 +13,6 @@ enum BlockMetrics {
         let fit = (width - gap * CGFloat(longestWord - 1)) / CGFloat(longestWord)
         return min(maxSize, max(minSize, fit.rounded(.down)))
     }
-
-    /// Smaller blocks for long sentences, so the board still fits on screen.
-    static func maxSize(letters: Int) -> CGFloat {
-        switch letters {
-        case ..<28: maxSize
-        case ..<45: 38
-        default: 32
-        }
-    }
 }
 
 extension EnvironmentValues {

@@ -40,6 +40,8 @@ struct SentenceView: View {
                             Group {
                                 if let headline = made.headline {
                                     Label("Inspired by: \(headline)", systemImage: "newspaper")
+                                } else if let quote = made.quote {
+                                    Label("“\(quote.text)” — \(quote.credit)", systemImage: "books.vertical")
                                 } else if made.isFallback {
                                     Label("Couldn't read the news, so here's one of the app's sentences.",
                                           systemImage: "wifi.exclamationmark")
@@ -200,7 +202,7 @@ struct SentenceView: View {
             }
             .pickerStyle(.menu)
             Picker("Sentence from", selection: $sentenceSource) {
-                ForEach(SentenceSource.allCases) { Label($0.title, systemImage: $0 == .news ? "newspaper" : "text.book.closed").tag($0.rawValue) }
+                ForEach(SentenceSource.allCases) { Label($0.title, systemImage: $0.icon).tag($0.rawValue) }
             }
             .pickerStyle(.menu)
             Section("Difficulty") {
