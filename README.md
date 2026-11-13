@@ -16,8 +16,8 @@ them into new words and the app checks the result. The app never records audio.
 
 - Tap or drag tiles down to build new words; **Space** starts the next word.
 - Punctuation marks and accents are free to add.
-- Single letters ("a", "è") and acronyms or abbreviations ("nasa", "tv", "km") don't count
-  as words, even when a dictionary has them.
+- Single letters only count when they're real words ("I", "a", "è"); acronyms and
+  abbreviations ("nasa", "tv", "km") never do, even when a dictionary has them.
 - **Suggest** shows possible anagrams.
 - **Check** says yes or no, shows the language of each word, and tells you whether the phrase
   means something.

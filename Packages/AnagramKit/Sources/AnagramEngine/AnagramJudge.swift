@@ -7,7 +7,7 @@ public struct AnagramVerdict: Equatable, Sendable {
         public let text: String
         /// The language the word was found in; nil if it isn't a word in any language.
         public let language: String?
-        /// A single letter or an acronym: never counts (see `WordRules`).
+        /// A single letter that isn't a word, or an acronym: never counts (see `WordRules`).
         public var isBanned = false
 
         public init(text: String, language: String?, isBanned: Bool = false) {
@@ -38,7 +38,7 @@ public struct AnagramVerdict: Equatable, Sendable {
 /// Decides whether a candidate is a valid anagram: same letters, a real rearrangement,
 /// and every word a word in some language. Languages may be mixed, unless `sameLanguage`.
 /// Punctuation marks are free: they don't count as letters and aren't looked up.
-/// Single letters and acronyms aren't words here (`WordRules`).
+/// Single letters that aren't words ("n") and acronyms don't count (`WordRules`).
 public struct AnagramJudge: Sendable {
     let checker = AnagramChecker()
     let validator: any WordValidator
@@ -62,9 +62,7 @@ public struct AnagramJudge: Sendable {
         for word in words {
             let text = word.lookupText
             var languages: [String]
-            if WordRules.fold(text).count < 2 {
-                languages = []  // a single letter: not even looked up
-            } else if sameLanguage {
+            if sameLanguage {
                 languages = await validator.languages(of: text, preferring: preferring)
             } else {
                 languages = await validator.language(of: text, preferring: preferring).map { [$0] } ?? []
@@ -74,7 +72,7 @@ public struct AnagramJudge: Sendable {
                 }
             }
             let allowed = languages.filter { WordRules.isAllowed(text, language: $0) }
-            banned.append(allowed.isEmpty && (!languages.isEmpty || WordRules.fold(text).count < 2))
+            banned.append(allowed.isEmpty && !languages.isEmpty)
             found.append(allowed)
         }
 

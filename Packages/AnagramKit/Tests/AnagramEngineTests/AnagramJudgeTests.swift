@@ -38,11 +38,14 @@ struct AnagramJudgeTests {
 
     @Test func singleLettersAndAcronymsDontCount() async {
         let judge = AnagramJudge(validator: WordListValidator([
-            "en": ["a", "nasa", "tv", "nato", "san", "vat", "tan", "ant", "ova"],
+            "en": ["a", "i", "n", "nasa", "tv", "nato", "san", "vat", "tan", "ant", "ova", "am"],
             "it": ["nato", "è"],
         ]))
-        let letter = await judge.judge(Phrase(text: "a ant"), source: Phrase(text: "tana"))
-        #expect(letter.problems == [.notAllowed(["a"])])
+        // "I" and "a" are words; "n" on its own isn't
+        let words = await judge.judge(Phrase(text: "I am a"), source: Phrase(text: "maia"))
+        #expect(words.isValid)
+        let letter = await judge.judge(Phrase(text: "n tan"), source: Phrase(text: "tann"))
+        #expect(letter.problems == [.notAllowed(["n"])])
         #expect(letter.words.first?.isBanned == true)
         let acronym = await judge.judge(Phrase(text: "nasa"), source: Phrase(text: "sana"))
         #expect(acronym.problems == [.notAllowed(["nasa"])])
@@ -55,8 +58,12 @@ struct AnagramJudgeTests {
     }
 
     @Test func wordRules() {
-        #expect(!WordRules.isAllowed("A", language: "en"))
-        #expect(!WordRules.isAllowed("è", language: "it"))
+        #expect(WordRules.isAllowed("I", language: "en"))
+        #expect(WordRules.isAllowed("A", language: "en"))
+        #expect(WordRules.isAllowed("è", language: "it"))
+        #expect(!WordRules.isAllowed("é", language: "it"))
+        #expect(!WordRules.isAllowed("n", language: "en"))
+        #expect(!WordRules.isAllowed("a", language: "de"))
         #expect(!WordRules.isAllowed("NASA", language: nil))
         #expect(!WordRules.isAllowed("km", language: "it"))
         #expect(!WordRules.isAllowed("dvd", language: "en"))

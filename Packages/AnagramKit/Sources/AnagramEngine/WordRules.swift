@@ -1,13 +1,29 @@
 import Foundation
 
-/// Words that don't count in an anagram, even when a dictionary has them: single letters,
-/// and acronyms or abbreviations ("nasa", "tv", "km").
+/// Words that don't count in an anagram, even when a dictionary has them: single letters
+/// that aren't words ("n", "x"), and acronyms or abbreviations ("nasa", "tv", "km").
 public enum WordRules {
     /// Whether `word` may be used as a word of an anagram in `language` (nil: any).
     public static func isAllowed(_ word: String, language: String?) -> Bool {
         let key = fold(word)
-        guard key.count >= 2 else { return false }
+        guard !key.isEmpty else { return false }
+        if key.count == 1 { return isOneLetterWord(word, language: language) }
         return !isAcronym(key, language: language)
+    }
+
+    /// Real one-letter words ("I", "a", "è"); spell checkers accept any letter on its own.
+    static let oneLetterWords: [String: Set<String>] = [
+        "en": ["a", "i"], "it": ["a", "e", "è", "i", "o"], "es": ["a", "e", "o", "u", "y"],
+        "fr": ["a", "à", "y"], "pt": ["a", "à", "e", "é", "o"], "de": [], "nl": [],
+        "sv": ["i", "å", "ö"], "da": ["i", "å", "ø"], "ca": ["a", "i", "o", "e"], "ro": ["a", "o", "e", "î"],
+        "pl": ["a", "i", "o", "u", "w", "z"], "cs": ["a", "i", "k", "o", "s", "u", "v", "z"],
+    ]
+
+    /// Accents count here: "è" is a word in Italian, "é" isn't.
+    static func isOneLetterWord(_ word: String, language: String?) -> Bool {
+        let letter = word.lowercased().filter(\.isLetter).precomposedStringWithCanonicalMapping
+        if let language { return oneLetterWords[language]?.contains(letter) == true }
+        return oneLetterWords.values.contains { $0.contains(letter) }
     }
 
     /// Spell checkers take these as words: acronyms and abbreviations with vowels. Words
