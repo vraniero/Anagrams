@@ -33,9 +33,11 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSCameraUsageDescription: Anagrams reads written sentences with the camera so you can anagram them.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ranierovirgilio.anagrams
+        CODE_SIGN_ENTITLEMENTS: App/Anagrams.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1"

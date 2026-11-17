@@ -92,8 +92,8 @@ public struct ClockRound: Equatable, Sendable {
 /// a full anagram of it. Each round, everyone sets a sentence once. The rules are chosen
 /// before the game starts and don't change while it's played.
 public struct Duel: Equatable, Sendable {
-    public struct Settings: Equatable, Sendable {
-        public enum Scoring: String, CaseIterable, Sendable {
+    public struct Settings: Equatable, Sendable, Codable {
+        public enum Scoring: String, CaseIterable, Sendable, Codable {
             /// A point per letter, plus one for every ten seconds left.
             case lettersAndTime
             /// A point per letter.

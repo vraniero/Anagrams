@@ -249,16 +249,18 @@ struct ClockSetupView: View {
                              : "Needs Apple Intelligence, which isn't available on this iPhone.")
                             .font(.footnote).foregroundStyle(.white.opacity(0.7))
                             .fixedSize(horizontal: false, vertical: true)
-                        Divider().overlay(.white.opacity(0.15)).padding(.vertical, 6)
-                        Toggle(isOn: $swearBonus) {
-                            Text("Swear words bonus").font(.headline).foregroundStyle(.white)
+                        if FeatureFlags.swearing {
+                            Divider().overlay(.white.opacity(0.15)).padding(.vertical, 6)
+                            Toggle(isOn: $swearBonus) {
+                                Text("Swear words bonus").font(.headline).foregroundStyle(.white)
+                            }
+                            .tint(Theme.glow)
+                            Text(session.canCheckMeaning
+                                 ? "Each swear word scores double; a full anagram that's a profanity as a whole, triple."
+                                 : "Each swear word scores double.")
+                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        .tint(Theme.glow)
-                        Text(session.canCheckMeaning
-                             ? "Each swear word scores double; a full anagram that's a profanity as a whole, triple."
-                             : "Each swear word scores double.")
-                            .font(.footnote).foregroundStyle(.white.opacity(0.7))
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .padding(18)
                     .background(Theme.navyDeep.opacity(0.9), in: .rect(cornerRadius: 22, style: .continuous))

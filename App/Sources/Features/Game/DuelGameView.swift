@@ -319,7 +319,7 @@ struct DuelGameView: View {
         let settings = duel.settings
         let meaning = settings.meaningBonus || settings.swearBonus ? await session.meaning(of: verdict) : nil
         guard phase == .solving else { return }
-        let hasSwear = verdict.words.contains { Profanity.isSwear($0.text, language: $0.language) }
+        let hasSwear = FeatureFlags.swearing && verdict.words.contains { Profanity.isSwear($0.text, language: $0.language) }
         endTurn(solved: true, answer: verdict.words, secondsLeft: secondsLeft, meaning: meaning, hasSwear: hasSwear)
     }
 
@@ -330,19 +330,10 @@ struct DuelGameView: View {
         session.verdict = nil
         let settings = duel.settings
         let makesSense = meaning?.makesSense == true
-        let isProfane = meaning?.isProfane == true
+        let isProfane = FeatureFlags.swearing && meaning?.isProfane == true
         let points = duel.finishTurn(solved: solved, letters: letters, secondsLeft: secondsLeft,
                                      makesSense: makesSense, hasSwear: hasSwear, isProfane: isProfane)
-        // the biggest bonus is the one that counts
-        let bonus: String? = if settings.swearBonus && isProfane {
-            "A proper profanity: triple points! 🤬"
-        } else if settings.swearBonus && hasSwear {
-            "A swear word: double points! 🤬"
-        } else if settings.meaningBonus && makesSense {
-            "It makes sense: double points!"
-        } else {
-            nil
-        }
+        let bonus = settings.bonus(makesSense: makesSense, hasSwear: hasSwear, isProfane: isProfane)
         findSolutions(besides: answer)
         withAnimation {
             phase = .result(points: points, solved: solved, answer: answer,
@@ -378,7 +369,7 @@ struct DuelGameView: View {
 }
 
 /// The anagrams the sentence allowed, shown after each turn.
-private struct PossibleAnagrams: View {
+struct PossibleAnagrams: View {
     let solutions: [Suggestion]?
     let solved: Bool
 
@@ -413,8 +404,18 @@ private struct PossibleAnagrams: View {
     }
 }
 
+extension Duel.Settings {
+    /// The biggest bonus is the one that counts.
+    func bonus(makesSense: Bool, hasSwear: Bool, isProfane: Bool) -> String? {
+        if swearBonus && isProfane { "A proper profanity: triple points! 🤬" }
+        else if swearBonus && hasSwear { "A swear word: double points! 🤬" }
+        else if meaningBonus && makesSense { "It makes sense: double points!" }
+        else { nil }
+    }
+}
+
 /// "1 minute", "2 minutes", "90 seconds".
-private func duration(_ seconds: TimeInterval) -> String {
+func duration(_ seconds: TimeInterval) -> String {
     let s = Int(seconds)
     if s % 60 != 0 { return "\(s) seconds" }
     return s == 60 ? "1 minute" : "\(s / 60) minutes"
@@ -439,7 +440,7 @@ extension Duel.Settings.Scoring {
 }
 
 /// The game's rules, as chips.
-private struct RulesSummary: View {
+struct RulesSummary: View {
     let settings: Duel.Settings
     let sentences: AppSentences?
 
@@ -453,7 +454,7 @@ private struct RulesSummary: View {
             chip("\(settings.rounds) \(settings.rounds == 1 ? "round" : "rounds")", "repeat")
             chip("≤ \(settings.maxLetters) letters", "textformat.size")
             if settings.meaningBonus { chip("Meaning ×2", "sparkles") }
-            if settings.swearBonus { chip("Swearing ×2 ×3", "exclamationmark.bubble") }
+            if settings.swearBonus && FeatureFlags.swearing { chip("Swearing ×2 ×3", "exclamationmark.bubble") }
         }
     }
 
@@ -467,9 +468,12 @@ private struct RulesSummary: View {
     }
 }
 
-/// Players and rules, decided before the game starts (and remembered for next time).
-private struct DuelSetupView: View {
-    let start: ([String], Duel.Settings, AppSentences?) -> Void
+/// Players and rules, decided before the game starts (and remembered for next time). Online,
+/// there are no names to write: the game starts with a friend or someone new.
+struct DuelSetupView: View {
+    var start: ([String], Duel.Settings, AppSentences?) -> Void = { _, _, _ in }
+    /// For an online game: the rules, and whether to invite a friend.
+    var startOnline: ((Duel.Settings, AppSentences?, _ friend: Bool) -> Void)? = nil
 
     @AppStorage("duel.players") private var savedNames = ""
     @AppStorage("duel.time") private var time = 120.0
@@ -500,34 +504,36 @@ private struct DuelSetupView: View {
         ThemedScreen {
             ScrollView {
                 VStack(spacing: 16) {
-                    section("Players") {
-                        ForEach($entries) { $entry in
-                            let i = entries.firstIndex { $0.id == entry.id } ?? 0
-                            HStack {
-                                TextField("", text: $entry.name,
-                                          prompt: Text("Player \(i + 1)").foregroundStyle(.white.opacity(0.5)))
-                                    .font(.title3.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                    .textInputAutocapitalization(.words)
-                                    .submitLabel(.next)
-                                if entries.count > Duel.Settings.playerRange.lowerBound {
-                                    Button("Remove player \(i + 1)", systemImage: "minus.circle.fill") {
-                                        let id = entry.id
-                                        withAnimation { entries.removeAll { $0.id == id } }
+                    if !isOnline {
+                        section("Players") {
+                            ForEach($entries) { $entry in
+                                let i = entries.firstIndex { $0.id == entry.id } ?? 0
+                                HStack {
+                                    TextField("", text: $entry.name,
+                                              prompt: Text("Player \(i + 1)").foregroundStyle(.white.opacity(0.5)))
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundStyle(.white)
+                                        .textInputAutocapitalization(.words)
+                                        .submitLabel(.next)
+                                    if entries.count > Duel.Settings.playerRange.lowerBound {
+                                        Button("Remove player \(i + 1)", systemImage: "minus.circle.fill") {
+                                            let id = entry.id
+                                            withAnimation { entries.removeAll { $0.id == id } }
+                                        }
+                                        .labelStyle(.iconOnly)
+                                        .foregroundStyle(.white.opacity(0.6))
                                     }
-                                    .labelStyle(.iconOnly)
-                                    .foregroundStyle(.white.opacity(0.6))
                                 }
+                                .padding(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.glow.opacity(0.6)))
                             }
-                            .padding(12)
-                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.glow.opacity(0.6)))
-                        }
-                        if entries.count < Duel.Settings.playerRange.upperBound {
-                            Button("Add player", systemImage: "plus.circle.fill") {
-                                withAnimation { entries.append(Entry()) }
+                            if entries.count < Duel.Settings.playerRange.upperBound {
+                                Button("Add player", systemImage: "plus.circle.fill") {
+                                    withAnimation { entries.append(Entry()) }
+                                }
+                                .foregroundStyle(Theme.glowLight)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .foregroundStyle(Theme.glowLight)
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
 
@@ -602,28 +608,38 @@ private struct DuelSetupView: View {
                                  : "Needs Apple Intelligence, which isn't available on this iPhone.")
                                 .font(.footnote).foregroundStyle(.white.opacity(0.7))
                         }
-                        rule("Swear words bonus") {
-                            Toggle(isOn: $swearBonus) {
-                                Text("Rude anagrams score more")
-                                    .foregroundStyle(.white)
+                        if FeatureFlags.swearing {
+                            rule("Swear words bonus") {
+                                Toggle(isOn: $swearBonus) {
+                                    Text("Rude anagrams score more")
+                                        .foregroundStyle(.white)
+                                }
+                                .tint(Theme.glow)
+                                Text(session.canCheckMeaning
+                                     ? "An anagram with a swear word scores double; one that's a profanity as a whole, triple."
+                                     : "An anagram with a swear word scores double.")
+                                    .font(.footnote).foregroundStyle(.white.opacity(0.7))
                             }
-                            .tint(Theme.glow)
-                            Text(session.canCheckMeaning
-                                 ? "An anagram with a swear word scores double; one that's a profanity as a whole, triple."
-                                 : "An anagram with a swear word scores double.")
-                                .font(.footnote).foregroundStyle(.white.opacity(0.7))
                         }
                     }
 
-                    Text(byApp ? "In turn, each player gets the phone and makes an anagram of the app's sentence. No suggestions in a game."
-                               : "In turn, each player writes a sentence and passes the phone to the next, who makes the anagram. No suggestions in a game.")
+                    Text(footer)
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.white.opacity(0.75))
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Start", action: go)
-                        .buttonStyle(CreamButtonStyle())
-                        .padding(.top, 4)
+                    if let startOnline {
+                        Button("Invite a friend") { startOnline(settings, appSentences, true) }
+                            .buttonStyle(CreamButtonStyle())
+                            .padding(.top, 4)
+                        Button("Play someone new") { startOnline(settings, appSentences, false) }
+                            .font(.headline)
+                            .foregroundStyle(Theme.glowLight)
+                    } else {
+                        Button("Start", action: go)
+                            .buttonStyle(CreamButtonStyle())
+                            .padding(.top, 4)
+                    }
                 }
                 .padding(20)
             }
@@ -634,6 +650,28 @@ private struct DuelSetupView: View {
     }
 
     private var byApp: Bool { sentencesBy == "app" }
+    private var isOnline: Bool { startOnline != nil }
+
+    private var footer: String {
+        switch (isOnline, byApp) {
+        case (true, true): "Two players, each on their own iPhone. In turn, you solve the app's sentence for you, whenever you like. No suggestions in a game."
+        case (true, false): "Two players, each on their own iPhone. In turn, you solve the sentence you got, then write one back, whenever you like. No suggestions in a game."
+        case (false, true): "In turn, each player gets the phone and makes an anagram of the app's sentence. No suggestions in a game."
+        case (false, false): "In turn, each player writes a sentence and passes the phone to the next, who makes the anagram. No suggestions in a game."
+        }
+    }
+
+    private var settings: Duel.Settings {
+        Duel.Settings(solveTime: time, rounds: rounds, sameLanguage: sameLanguage, scoring: scoringChoice.wrappedValue,
+                      meaningBonus: meaningBonus && session.canCheckMeaning, maxLetters: maxLetters, swearBonus: swearBonus && FeatureFlags.swearing)
+    }
+
+    private var appSentences: AppSentences? {
+        byApp ? AppSentences(level: SentenceBank.Level(rawValue: level) ?? .medium,
+                             source: SentenceSource(rawValue: source) ?? .classic,
+                             language: language.isEmpty ? nil : language)
+              : nil
+    }
 
     private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -668,13 +706,6 @@ private struct DuelSetupView: View {
             let trimmed = entry.name.trimmingCharacters(in: .whitespaces)
             return trimmed.isEmpty ? "Player \(i + 1)" : trimmed
         }
-        start(players, Duel.Settings(solveTime: time, rounds: rounds, sameLanguage: sameLanguage,
-                                     scoring: scoringChoice.wrappedValue,
-                                     meaningBonus: meaningBonus && session.canCheckMeaning,
-                                     maxLetters: maxLetters, swearBonus: swearBonus),
-              byApp ? AppSentences(level: SentenceBank.Level(rawValue: level) ?? .medium,
-                                   source: SentenceSource(rawValue: source) ?? .classic,
-                                   language: language.isEmpty ? nil : language)
-                    : nil)
+        start(players, settings, appSentences)
     }
 }

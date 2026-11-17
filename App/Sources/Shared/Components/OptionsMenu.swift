@@ -16,9 +16,11 @@ struct OptionsMenu: View {
                 Label("Suggestions", systemImage: "lightbulb")
                 Text("Show possible anagrams when asked")
             }
-            Toggle(isOn: $swearBonus) {
-                Label("Swear words bonus", systemImage: "exclamationmark.bubble")
-                Text("Swear words score double, a rude anagram triple")
+            if FeatureFlags.swearing {
+                Toggle(isOn: $swearBonus) {
+                    Label("Swear words bonus", systemImage: "exclamationmark.bubble")
+                    Text("Swear words score double, a rude anagram triple")
+                }
             }
         } label: {
             Label("Options", systemImage: "slider.horizontal.3")

@@ -31,6 +31,11 @@ them into new words and the app checks the result. The app never records audio.
   player writes a sentence for the next one to solve, or the app writes every sentence and
   the players take turns solving. Time, rounds, longest sentence, languages and scoring are
   set up front too. After each turn, the app shows other anagrams that were possible.
+- **Online** (2 players, each on their own iPhone, through Game Center): invite a friend or
+  play someone new. Same rules as Multiplayer; you take your turn whenever you like and get a
+  notification when it's yours. A turn is: solve the sentence you got (the clock starts when
+  you open it and keeps running if you leave), then send one back, written by you or by the
+  app.
 
 The app never gives the same sentence twice: it remembers every one it has given. When its
 own sentences for a choice run out, it turns to the news.
@@ -41,7 +46,8 @@ Everything runs on the phone:
 - **Suggestions**: bundled word lists.
 - **Grammar, meaning and newspaper-inspired sentences**: Apple Intelligence (Foundation
   Models), when the iPhone has it. Without it, those features step aside.
-- **Newspapers**: the only network use, fetching Google News' public RSS feed.
+- **Newspapers**: fetching Google News' public RSS feed.
+- **Online games**: Game Center turn-based matches; no server of our own.
 
 ## Getting started
 
@@ -83,6 +89,12 @@ Optional launch arguments (Scheme → Run → Arguments):
    `xcodegen generate`.
 5. After the first install, **trust the developer** on the phone: Settings → General →
    VPN & Device Management.
+6. **Game Center** (online games): the app has the Game Center capability
+   (`App/Anagrams.entitlements`), so the provisioning profile must include it: with the Apple
+   ID in Xcode, `-allowProvisioningUpdates` adds it. Game Center also needs an app record for
+   `com.ranierovirgilio.anagrams` in App Store Connect with Game Center on; without one,
+   signing in says the game isn't recognized. To try it, the two phones need different Game
+   Center accounts.
 
 **Every time**
 

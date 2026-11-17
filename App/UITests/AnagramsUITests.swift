@@ -112,6 +112,8 @@ final class AnagramsUITests: XCTestCase {
         app.buttons["Newspapers"].tap()
         XCTAssertTrue(app.staticTexts["From last week's newspaper headlines, or inspired by one."].exists)
         app.buttons["Classic"].tap()
+        // kept out of the app unless launched with -swearing
+        XCTAssertFalse(app.switches["Swear words bonus"].exists)
         shot(app, "8-clock-setup")
         app.buttons["Start"].tap()
         XCTAssertTrue(app.staticTexts.matching(identifier: "L").firstMatch.waitForExistence(timeout: 5))
@@ -172,6 +174,57 @@ final class AnagramsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["dirty moor"].exists)
         shot(app, "13-multi-result")
         XCTAssertTrue(app.buttons["Next: Bo writes a sentence"].exists)
+    }
+
+    /// An online game against the pretend opponent (Game Center can't run in a test): send a
+    /// sentence, get one back, solve it, and the game is over.
+    @MainActor
+    func testOnline() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-onlineDemo", "-demoText", "", "-meaning", "yes", "-grammar", "ok",
+                               "-duel.meaningBonus", "YES", "-duel.maxLetters", "20", "-duel.sentencesBy", "players",
+                               "-duel.rounds", "1", "-duel.scoring", "letters", "-mute", "-still"]
+        app.launch()
+        app.buttons["Game"].tap()
+        app.buttons["Online"].tap()
+        XCTAssertTrue(app.buttons["New game"].waitForExistence(timeout: 5))
+        shot(app, "20-online-lobby")
+        app.buttons["New game"].tap()
+        XCTAssertTrue(app.staticTexts["SENTENCES"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["PLAYERS"].exists)
+        let someoneNew = app.buttons["Play someone new"]
+        for _ in 0..<4 where !someoneNew.isHittable { app.swipeUp() }
+        XCTAssertTrue(app.buttons["Invite a friend"].exists)
+        shot(app, "21-online-setup")
+        someoneNew.tap()
+
+        let written = app.staticTexts["Write a sentence for Robin."].waitForExistence(timeout: 5)
+        shot(app, "21b-online-after-start")
+        XCTAssertTrue(written)
+        typeSentence(app, "Listen")
+        tapMakeAnagram(app)
+        // Robin gives up and sends one back
+        XCTAssertTrue(app.staticTexts["Robin sent you a sentence"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Robin couldn't make an anagram"].exists)
+        XCTAssertTrue(app.staticTexts["Round 1 of 1"].exists || app.navigationBars["Round 1 of 1"].exists)
+        shot(app, "22-online-ready")
+        app.buttons["I'm ready"].tap()
+        for letter in ["D", "I", "R", "T", "Y"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
+        app.buttons["Space"].tap()
+        for letter in ["R", "O", "O", "M"] { app.staticTexts.matching(identifier: letter).firstMatch.tap() }
+        app.buttons["Check"].tap()
+        XCTAssertTrue(app.staticTexts["You did it! +18"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["OTHER POSSIBLE ANAGRAMS"].exists)
+        shot(app, "23-online-result")
+        app.buttons["See who won"].tap()
+        XCTAssertTrue(app.staticTexts["You win!"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["SO FAR"].exists)
+        shot(app, "24-online-over")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let won = app.staticTexts["You won"].waitForExistence(timeout: 5)
+        shot(app, "25-online-lobby-after")
+        XCTAssertTrue(won)
+        XCTAssertTrue(app.staticTexts["FINISHED"].exists)
     }
 
     /// The app writes every sentence: players only solve, in turn.
@@ -243,7 +296,7 @@ final class AnagramsUITests: XCTestCase {
     @MainActor
     func testSwearWordsBonus() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-demoText", "", "-givenSentence", "this tins", "-meaning", "profane"]
+        app.launchArguments = ["-demoText", "", "-givenSentence", "this tins", "-meaning", "profane", "-swearing"]
         app.launchArguments += ["-mute", "-still"]  // no sound, no moving background: a busy simulator stalls
         app.launch()
         app.buttons["Game"].tap()

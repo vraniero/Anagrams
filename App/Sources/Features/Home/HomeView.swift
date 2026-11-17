@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum Destination: Hashable { case training, game, help, clock, duel }
+enum Destination: Hashable { case training, game, help, clock, duel, online, onlineSetup, onlineMatch(String) }
 
 /// The first screen: the title in cream tiles inside the circling arrows, over the moving
 /// night sky, and the menu.

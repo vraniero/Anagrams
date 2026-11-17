@@ -148,13 +148,17 @@ private enum Referee {
         poetic line a reader can still understand. A missing article or punctuation is fine. Words may come \
         from different languages: judge the mix as a multilingual reader would ("the gato sleeps" makes sense).
 
-        Swearing is part of the game: a rude or vulgar phrase can make perfect sense. Judge it like any other \
-        phrase, and say whether it is a profanity.
-
         It does not make sense if it is a list of unrelated words ("cat dog tree", "lens tin"), word salad, \
         or words in an order the language doesn't allow ("barks a dog").
 
         Write in English.
+        """
+
+    /// With the swear words bonus built in, rude phrases are part of the game.
+    static let swearing = """
+
+        Swearing is part of the game: a rude or vulgar phrase can make perfect sense. Judge it like any other \
+        phrase, and say whether it is a profanity.
         """
 
     static func containsSwear(_ phrase: String, languages: [String]) -> Bool {
@@ -165,7 +169,7 @@ private enum Referee {
     }
 
     static func judge(_ phrase: String, languages: [String]) async -> Meaning? {
-        let session = LanguageModelSession(instructions: instructions)
+        let session = LanguageModelSession(instructions: FeatureFlags.swearing ? instructions + swearing : instructions)
         do {
             let response = try await session.respond(
                 to: "Phrase: \(phrase)\nLanguages of its words: \(englishLanguageNames(languages))",
@@ -177,10 +181,10 @@ private enum Referee {
                 return Meaning(makesSense: false, reading: "Close, but the words are out of order: “\(judgement.natural)”.")
             }
             return Meaning(makesSense: judgement.makesSense, reading: judgement.reading,
-                           isProfane: judgement.makesSense && judgement.isProfane)
+                           isProfane: FeatureFlags.swearing && judgement.makesSense && judgement.isProfane)
         } catch let error as LanguageModelSession.GenerationError {
             // too rude for the model to even read: with swear words in it, that's a profanity
-            if case .guardrailViolation = error, containsSwear(phrase, languages: languages) {
+            if FeatureFlags.swearing, case .guardrailViolation = error, containsSwear(phrase, languages: languages) {
                 return Meaning(makesSense: true, reading: "Too rude to read out loud!", isProfane: true)
             }
             return nil

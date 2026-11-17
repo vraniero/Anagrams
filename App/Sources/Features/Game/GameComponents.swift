@@ -15,6 +15,9 @@ struct GameModesView: View {
                 MenuLink(.duel, title: "Multiplayer",
                          subtitle: "2 to 4 players: write a sentence, the next one makes the anagram",
                          symbol: "person.3.fill")
+                MenuLink(.online, title: "Online",
+                         subtitle: "Two players, two iPhones: take turns whenever you like",
+                         symbol: "globe")
             }
             .padding(.horizontal, 24)
         }

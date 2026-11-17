@@ -2,8 +2,11 @@ import SwiftUI
 
 /// Home menu → Training (write, build, check), Game or Help.
 struct RootView: View {
+    @State private var path: [Destination] = []
+    private var center: GameCenter { .shared }
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             HomeView()
                 .navigationDestination(for: Destination.self) { destination in
                     switch destination {
@@ -12,10 +15,26 @@ struct RootView: View {
                     case .help: HelpView()
                     case .clock: ClockGameView()
                     case .duel: DuelGameView()
+                    case .online: OnlineLobbyView()
+                    case .onlineSetup: OnlineSetupView()
+                    case let .onlineMatch(id): OnlineMatchView(link: center.link(id)).id(id)
                     }
                 }
         }
         .tint(Theme.glow)
+        .onAppear { center.signInIfUsed() }
+        .alert("Game Center", isPresented: Binding { center.error != nil } set: { if !$0 { center.error = nil } }) {
+            Button("OK") { center.error = nil }
+        } message: {
+            Text(center.error ?? "")
+        }
+
+        // an online game to show: just created, or its turn came (a notification was tapped)
+        .onChange(of: center.opened) { _, id in
+            guard let id else { return }
+            center.opened = nil
+            path = [.game, .online, .onlineMatch(id)]
+        }
     }
 }
 

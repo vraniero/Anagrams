@@ -22,7 +22,7 @@ struct VerdictView: View {
 
             if verdict.isValid {
                 MeaningNote(meaning: session.meaning, isChecking: session.isCheckingMeaning,
-                            showsProfanity: swearBonus)
+                            showsProfanity: swearBonus && FeatureFlags.swearing)
             }
 
             ForEach(Array(verdict.problems.enumerated()), id: \.offset) { _, problem in
@@ -33,7 +33,7 @@ struct VerdictView: View {
                 ForEach(Array(verdict.words.enumerated()), id: \.offset) { _, word in
                     HStack {
                         Text(word.text.lowercased()).font(.title3.weight(.semibold))
-                        if swearBonus && Profanity.isSwear(word.text, language: word.language) {
+                        if swearBonus && FeatureFlags.swearing && Profanity.isSwear(word.text, language: word.language) {
                             Text("🤬 ×2").font(.subheadline.weight(.bold)).foregroundStyle(.orange)
                         }
                         Spacer()
