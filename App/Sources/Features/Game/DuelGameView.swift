@@ -632,9 +632,12 @@ struct DuelSetupView: View {
                         Button("Invite a friend") { startOnline(settings, appSentences, true) }
                             .buttonStyle(CreamButtonStyle())
                             .padding(.top, 4)
-                        Button("Play someone new") { startOnline(settings, appSentences, false) }
+                        Button("Play someone new") { startOnline(settings, appSentencesForStrangers, false) }
                             .font(.headline)
                             .foregroundStyle(Theme.glowLight)
+                        Text("With someone new, the app writes every sentence.")
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.6))
                     } else {
                         Button("Start", action: go)
                             .buttonStyle(CreamButtonStyle())
@@ -664,6 +667,14 @@ struct DuelSetupView: View {
     private var settings: Duel.Settings {
         Duel.Settings(solveTime: time, rounds: rounds, sameLanguage: sameLanguage, scoring: scoringChoice.wrappedValue,
                       meaningBonus: meaningBonus && session.canCheckMeaning, maxLetters: maxLetters, swearBonus: swearBonus && FeatureFlags.swearing)
+    }
+
+    /// Strangers never send each other their own text: the app writes every sentence (the
+    /// chosen kind, or the last one picked).
+    private var appSentencesForStrangers: AppSentences {
+        AppSentences(level: SentenceBank.Level(rawValue: level) ?? .medium,
+                     source: SentenceSource(rawValue: source) ?? .classic,
+                     language: language.isEmpty ? nil : language)
     }
 
     private var appSentences: AppSentences? {

@@ -31,7 +31,7 @@ FOUR WAYS TO PLAY
 • Training: no clock, no pressure. Ask for suggestions when you're stuck.
 • Against the clock: 90 seconds to find as many words as you can in the app's sentence. A full anagram scores double.
 • Multiplayer: 2 to 4 players on one iPhone. Write a sentence for the next player, or let the app write them all, then pass the phone. Choose the time, rounds, sentence length, languages and scoring.
-• Online: challenge a friend, or play someone new through Game Center. Take your turn whenever you like: solve the sentence you got, then send one back. You get a notification when it's your turn.
+• Online: challenge a friend, or play someone new through Game Center. Take your turn whenever you like: solve the sentence you got, then send one back (with someone new, the app writes every sentence). You get a notification when it's your turn.
 
 After every turn, see the other anagrams you could have made.
 
@@ -61,4 +61,4 @@ Data Not Collected.
 
 ## Review notes (for Apple)
 
-No sign-in is needed. Online play uses Game Center turn-based matches: two players, each on their own iPhone. To try it with one device, start a game with "Play someone new". The game waits for an opponent while you play your first turn. The meaning check needs Apple Intelligence; without it, that feature is simply off.
+No sign-in is needed. Online play uses Game Center turn-based matches: two players, each on their own iPhone. To try it with one device, start a game with "Play someone new". The game waits for an opponent while you play your first turn. Players matched with strangers can't exchange any text of their own: the app writes every sentence. Only friends a player invites can write sentences for each other. The meaning check needs Apple Intelligence; without it, that feature is simply off.

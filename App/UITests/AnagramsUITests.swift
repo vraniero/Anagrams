@@ -183,7 +183,8 @@ final class AnagramsUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-onlineDemo", "-demoText", "", "-meaning", "yes", "-grammar", "ok",
                                "-duel.meaningBonus", "YES", "-duel.maxLetters", "20", "-duel.sentencesBy", "players",
-                               "-duel.rounds", "1", "-duel.scoring", "letters", "-mute", "-still"]
+                               "-duel.rounds", "1", "-duel.scoring", "letters", "-givenSentence", "Listen",
+                               "-mute", "-still"]
         app.launch()
         app.buttons["Game"].tap()
         app.buttons["Online"].tap()
@@ -195,16 +196,15 @@ final class AnagramsUITests: XCTestCase {
         let someoneNew = app.buttons["Play someone new"]
         for _ in 0..<4 where !someoneNew.isHittable { app.swipeUp() }
         XCTAssertTrue(app.buttons["Invite a friend"].exists)
+        XCTAssertTrue(app.staticTexts["With someone new, the app writes every sentence."].exists)
         shot(app, "21-online-setup")
         someoneNew.tap()
 
-        let written = app.staticTexts["Write a sentence for Robin."].waitForExistence(timeout: 5)
-        shot(app, "21b-online-after-start")
-        XCTAssertTrue(written)
-        typeSentence(app, "Listen")
-        tapMakeAnagram(app)
-        // Robin gives up and sends one back
-        XCTAssertTrue(app.staticTexts["Robin sent you a sentence"].waitForExistence(timeout: 10))
+        // with someone new the app writes the sentence (even though the rules say the players
+        // do): Robin gives up on it and sends one back
+        XCTAssertFalse(app.staticTexts["Write a sentence for Robin."].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.staticTexts["A new sentence for you"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["App sentences"].exists)
         XCTAssertTrue(app.staticTexts["Robin couldn't make an anagram"].exists)
         XCTAssertTrue(app.staticTexts["Round 1 of 1"].exists || app.navigationBars["Round 1 of 1"].exists)
         shot(app, "22-online-ready")
@@ -225,6 +225,22 @@ final class AnagramsUITests: XCTestCase {
         shot(app, "25-online-lobby-after")
         XCTAssertTrue(won)
         XCTAssertTrue(app.staticTexts["FINISHED"].exists)
+    }
+
+    /// A friend you invite gets a sentence you write.
+    @MainActor
+    func testOnlineFriendWritesSentence() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-onlineDemo", "-demoText", "", "-grammar", "ok", "-duel.sentencesBy", "players",
+                               "-duel.maxLetters", "20", "-mute", "-still"]
+        app.launch()
+        app.buttons["Game"].tap()
+        app.buttons["Online"].tap()
+        app.buttons["New game"].tap()
+        let friend = app.buttons["Invite a friend"]
+        for _ in 0..<4 where !friend.isHittable { app.swipeUp() }
+        friend.tap()
+        XCTAssertTrue(app.staticTexts["Write a sentence for Robin."].waitForExistence(timeout: 5))
     }
 
     /// The app writes every sentence: players only solve, in turn.
@@ -362,7 +378,10 @@ final class AnagramsUITests: XCTestCase {
         first.buttons.firstMatch.exists ? first.buttons.firstMatch.tap() : first.tap()
         app.buttons["Punctuation and accents"].tap()
         app.buttons["Add !"].tap()
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1)).tap()  // closes the panel
+        // closes the panel: a tap on the empty lower part of the anagram card, which the panel
+        // never covers (higher up, it can land on one of its keys)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.72)).tap()
+        XCTAssertTrue(app.buttons["Add !"].waitForNonExistence(timeout: 3))
         shot(app, "16-arranged")
         app.buttons["Check"].tap()
         XCTAssertTrue(app.staticTexts["Yes! It's an anagram."].waitForExistence(timeout: 10))

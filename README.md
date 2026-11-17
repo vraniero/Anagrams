@@ -35,7 +35,8 @@ them into new words and the app checks the result. The app never records audio.
   play someone new. Same rules as Multiplayer; you take your turn whenever you like and get a
   notification when it's yours. A turn is: solve the sentence you got (the clock starts when
   you open it and keeps running if you leave), then send one back, written by you or by the
-  app.
+  app. With someone new, the app always writes the sentences: strangers never send each
+  other their own text.
 
 The app never gives the same sentence twice: it remembers every one it has given. When its
 own sentences for a choice run out, it turns to the news.
