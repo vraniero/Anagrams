@@ -42,6 +42,11 @@ Your sentences stay on your iPhone. Online games go through Apple's Game Center.
 
 anagram,word,puzzle,letters,tiles,multiplayer,game center,brain,vocabulary,spelling,sentence,italian
 
+## URLs
+
+- Support URL: https://vraniero.github.io/Anagrams/site/
+- Privacy Policy URL: https://vraniero.github.io/Anagrams/site/privacy.html
+
 ## Category
 
 Primary: Games → Word. Secondary: Games → Puzzle.
